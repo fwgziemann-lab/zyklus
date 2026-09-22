@@ -25,7 +25,7 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.3.1';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';
@@ -77,6 +77,21 @@
   }
   function clearLocal() {
     try { Object.keys(KEYS).forEach(function (k) { localStorage.removeItem(KEYS[k]); }); } catch (e) { /* egal */ }
+    try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* egal */ }
+  }
+
+  // Das Access Token wird nur für die Lebensdauer des Tabs gemerkt (sessionStorage),
+  // damit ein Neuladen innerhalb der Stunde keinen neuen Klick braucht. Nie in localStorage.
+  const TOKEN_KEY = 'zyklus.token';
+  function loadToken() {
+    if (noLocal()) return null;
+    try { const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null'); return t && t.token && Date.now() < t.expiresAt ? t : null; } catch (e) { return null; }
+  }
+  function saveToken() {
+    try {
+      if (noLocal() || !state.auth.token) sessionStorage.removeItem(TOKEN_KEY);
+      else sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token: state.auth.token, expiresAt: state.auth.expiresAt }));
+    } catch (e) { /* egal */ }
   }
 
   /* ================================================================== */
@@ -162,6 +177,7 @@
             state.auth.scope = resp.scope || '';
             state.settings.connectedBefore = true;
             persist();
+            saveToken();
             if (p) p.resolve(resp);
           },
           error_callback: function (err) {
@@ -193,6 +209,7 @@
   function disconnect() {
     const t = state.auth.token;
     state.auth.token = null; state.auth.expiresAt = 0;
+    saveToken();
     if (t && gisReady()) { try { google.accounts.oauth2.revoke(t, function () {}); } catch (e) { /* egal */ } }
     state.settings.connectedBefore = false;
     // Lokalen Cache komplett leeren (Einträge, Warteschlange, bekannte Termine);
@@ -228,6 +245,7 @@
     const res = await fetch(url, opts);
     if (res.status === 401) {
       state.auth.token = null; state.auth.expiresAt = 0;
+      saveToken();
       throw new AuthError('Verbindung abgelaufen');
     }
     if (res.status === 204) return null;
@@ -487,6 +505,23 @@
     if (e instanceof AuthError) setStatus('warn', 'Verbindung erneuern');
     else if (!navigator.onLine) setStatus('warn', 'offline');
     else setStatus('err', 'Fehler: ' + (e.message || e));
+  }
+
+  /**
+   * Stille Erneuerung beim ersten Tipp/Klick irgendwo in der App: Wenn die
+   * Verbindung abgelaufen ist, öffnet Google kurz ein Fenster, das sich bei
+   * bestehender Google-Anmeldung von selbst wieder schließt. Wird nur einmal
+   * pro Ablauf versucht; schlägt es fehl, bleibt der Button "Erneut verbinden".
+   */
+  let autoRenewTried = false;
+  function autoRenewOnGesture(ev) {
+    if (autoRenewTried || hasToken() || state.auth.pending || state.syncing) return;
+    if (!state.settings.connectedBefore || !gisReady() || !navigator.onLine || !clientId()) return;
+    // Klicks auf die Verbinden-Buttons erledigen das selbst
+    if (ev.target.closest && ev.target.closest('#btn-connect, #btn-connect-top, #btn-sync, #btn-disconnect, #btn-find-calendar')) return;
+    autoRenewTried = true;
+    setStatus('busy', 'Verbindung wird erneuert …');
+    requestToken({ prompt: '' }).then(fullSync).catch(function () { setStatus('warn', 'Verbindung erneuern'); });
   }
 
   /** Aus einem Klick heraus: anmelden (oder Token erneuern) und dann synchronisieren. */
@@ -775,7 +810,7 @@
     persist();
     render();
     // Aus einem Klick heraus: abgelaufene Verbindung still erneuern, sonst direkt hochladen
-    if (!hasToken() && state.settings.connectedBefore && gisReady() && navigator.onLine) {
+    if (!hasToken() && state.settings.connectedBefore && gisReady() && navigator.onLine && !state.auth.pending) {
       requestToken({ prompt: '' }).then(pushChanges).catch(function () { setStatus('warn', 'Verbindung erneuern'); });
     } else {
       pushChanges();
@@ -839,7 +874,7 @@
     });
     $('set-nolocal').addEventListener('change', function () {
       setNoLocal(this.checked);
-      if (!this.checked) persist();
+      if (!this.checked) { persist(); saveToken(); }
       toast(this.checked ? 'Es wird nichts mehr lokal gespeichert' : 'Lokaler Cache wieder aktiv');
     });
 
@@ -970,10 +1005,18 @@
     let lastDay = today();
     setInterval(function () { const t = today(); if (t !== lastDay) { lastDay = t; recompute(); render(); } }, 60000);
 
-    if (state.settings.connectedBefore) setStatus('warn', 'Verbindung erneuern');
+    const cached = loadToken();
+    if (cached) {
+      state.auth.token = cached.token; state.auth.expiresAt = cached.expiresAt;
+      setStatus('ok', 'verbunden');
+      if (navigator.onLine) fullSync();
+    } else if (state.settings.connectedBefore) setStatus('warn', 'Verbindung erneuern');
     else if (!navigator.onLine) setStatus('warn', 'offline');
     else setStatus('', 'nicht verbunden');
     render();
+    document.addEventListener('pointerup', autoRenewOnGesture, true);
+    // Nach Ablauf darf beim nächsten Tipp erneut versucht werden
+    setInterval(function () { if (hasToken()) autoRenewTried = false; }, 30000);
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ });

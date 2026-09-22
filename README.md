@@ -119,7 +119,7 @@ Tipp: Wenn Termine auf dem Sperrbildschirm auftauchen, in den Einstellungen der 
 
 ## Normale Nutzung
 
-* Beim Öffnen einmal auf „Mit Google verbinden“ tippen. Die App speichert aus Sicherheitsgründen keine dauerhaften Zugangsschlüssel, deshalb ist das je nach Browser öfter nötig.
+* Beim allerersten Öffnen auf einem Gerät einmal auf „Verbinden“ tippen. Danach hält die App die Verbindung von selbst: Google gibt Browser-Apps Zugangsschlüssel für jeweils eine Stunde; ist er abgelaufen, erneuert die App ihn beim nächsten Tipp automatisch (ein Google-Fenster blitzt kurz auf und schließt sich wieder, ohne Passwort). Nur wenn du im Browser bei Google abgemeldet bist, musst du dich dort neu anmelden.
 * Ohne Internet kannst du trotzdem eintragen. Die App lädt alles beim nächsten Verbinden hoch. Oben siehst du, ob alles synchronisiert ist.
 * Einmal im Monat einen **JSON Export** als Backup machen und privat ablegen, **nicht** im Projektordner.
 
@@ -199,7 +199,7 @@ Live: https://fwgziemann-lab.github.io/zyklus/ · Repository: https://github.com
 
 Datumsangaben sind überall Strings `YYYY-MM-DD`. Gerechnet wird in UTC-Tagen (`Date.UTC`), damit Sommerzeit und Zeitzonen keine Off-by-one-Fehler erzeugen. Nur `todayISO()` liest die lokale Uhr des Geräts.
 
-Alle Nutzerdaten werden ausschließlich über `textContent` in den DOM geschrieben (kein `innerHTML`). Das Access Token liegt nur in `state.auth` im Arbeitsspeicher.
+Alle Nutzerdaten werden ausschließlich über `textContent` in den DOM geschrieben (kein `innerHTML`). Das Access Token liegt in `state.auth` im Arbeitsspeicher und zusätzlich nur für die Lebensdauer des Tabs in `sessionStorage` (`zyklus.token`, damit ein Neuladen innerhalb der Stunde keinen Klick braucht); nie in `localStorage`, und bei „Nichts lokal speichern“ gar nicht.
 
 ## Datenmodell
 
@@ -261,7 +261,7 @@ Vorhersagen: Bei jeder Neuberechnung vergleicht `syncPredictions` die gewünscht
 
 ### Anmeldung und Scopes
 
-Anmeldung über Google Identity Services (`https://accounts.google.com/gsi/client`, Token-Modell, `initTokenClient` / `requestAccessToken`). Es gibt kein Backend und kein Client Secret; die Client ID ist öffentlich und steht im Meta-Tag `google-client-id` in `index.html` (alternativ in den Einstellungen). Das Anmeldefenster wird nur aus einem Klick/Tipp heraus geöffnet, damit Popup-Blocker nicht greifen. Access Tokens gelten etwa eine Stunde; die App merkt sich den Ablauf, zeigt danach „Verbindung erneuern“ und versucht beim nächsten Speichern-Klick eine stille Erneuerung (`prompt: ''`). Beim Trennen wird das Token bei Google widerrufen (`revoke`) und der lokale Cache (Einträge, Warteschlange, bekannte IDs) gelöscht; Einstellungen inklusive Kalender ID bleiben, damit beim nächsten Verbinden kein zweiter Kalender entsteht.
+Anmeldung über Google Identity Services (`https://accounts.google.com/gsi/client`, Token-Modell, `initTokenClient` / `requestAccessToken`). Es gibt kein Backend und kein Client Secret; die Client ID ist öffentlich und steht im Meta-Tag `google-client-id` in `index.html` (alternativ in den Einstellungen). Das Anmeldefenster wird nur aus einem Klick/Tipp heraus geöffnet, damit Popup-Blocker nicht greifen. Access Tokens gelten etwa eine Stunde; die App merkt sich den Ablauf und versucht beim nächsten Tipp irgendwo in der App eine stille Erneuerung (`prompt: ''`, Google schließt das Fenster bei bestehender Anmeldung sofort wieder). Schlägt das fehl, bleibt der Button „Erneut verbinden“. Ein gültiges Token wird beim Start aus `sessionStorage` übernommen und die App synchronisiert sofort. Beim Trennen wird das Token bei Google widerrufen (`revoke`) und der lokale Cache (Einträge, Warteschlange, bekannte IDs) gelöscht; Einstellungen inklusive Kalender ID bleiben, damit beim nächsten Verbinden kein zweiter Kalender entsteht.
 
 Standard-Scope ist ausschließlich `https://www.googleapis.com/auth/calendar.app.created`. Laut aktueller Google-Doku deckt er `calendars.insert`, `calendars.get` sowie `events.list/insert/update/delete` auf den selbst angelegten Kalendern ab, **nicht** aber `calendarList.list`. Folge: Auf einem neuen Gerät kann die App ihren Kalender nicht selbst wiederfinden, solange die Kalender ID nicht lokal bekannt ist. Dafür gibt es zwei Wege:
 
