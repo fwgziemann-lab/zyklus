@@ -53,6 +53,7 @@ Hinweis: Google ändert die Oberfläche öfter. Die Bezeichnungen können leicht
    `https://www.googleapis.com/auth/calendar.app.created`
    Dieser Bereich erlaubt der App nur den Zugriff auf den Kalender, den sie selbst anlegt. Deine anderen Termine sieht sie nicht.
    Optional zusätzlich `https://www.googleapis.com/auth/calendar.calendarlist.readonly` eintragen: Den braucht nur der Button „Kalender in Google suchen“ auf einem neuen Gerät (siehe Technische Doku, Abschnitt Scopes). Ohne ihn kann man die Kalender ID auch von Hand einfügen.
+   Nur wenn ihr **einen gemeinsamen Kalender zu zweit** nutzen wollt, zusätzlich `https://www.googleapis.com/auth/calendar.events` eintragen (siehe Abschnitt „Zu zweit denselben Kalender nutzen“).
 7. Unter **Clients** → „Client erstellen“:
    * Anwendungstyp: **Webanwendung**
    * Name: **Zyklus Web**
@@ -119,10 +120,28 @@ Tipp: Wenn Termine auf dem Sperrbildschirm auftauchen, in den Einstellungen der 
 
 ## Normale Nutzung
 
+* Beim Öffnen zeigt die App einen Startbildschirm mit dem Knopf „Mit Google verbinden“ bzw. „Verbindung erneuern“. Einmal tippen, dann ist alles synchron. So kommt die Anmeldung zuerst, statt später unvermittelt aufzupoppen.
 * Beim allerersten Öffnen auf einem Gerät einmal auf „Verbinden“ tippen. Danach hält die App die Verbindung von selbst: Google gibt Browser-Apps Zugangsschlüssel für jeweils eine Stunde; ist er abgelaufen, erneuert die App ihn beim nächsten Tipp automatisch (ein Google-Fenster blitzt kurz auf und schließt sich wieder, ohne Passwort). Nur wenn du im Browser bei Google abgemeldet bist, musst du dich dort neu anmelden.
 * Ohne Internet kannst du trotzdem eintragen. Die App lädt alles beim nächsten Verbinden hoch. Oben siehst du, ob alles synchronisiert ist.
 * Einmal im Monat einen **JSON Export** als Backup machen und privat ablegen, **nicht** im Projektordner.
 
+
+## Zu zweit denselben Kalender nutzen
+
+Wenn zwei Personen dieselben Einträge sehen und bearbeiten wollen (z. B. du und deine Freundin), gibt es zwei Wege:
+
+**Weg A – nur mitlesen, ohne Änderung an der App.** Diejenige, bei der die Daten liegen, gibt in Google Kalender den Kalender „Zyklus“ für das andere Google Konto frei (Einstellungen → Kalender „Zyklus“ → „Für bestimmte Personen freigeben“). Die andere Person sieht die Termine dann in ihrer Google Kalender App. Im diskreten Modus stehen dort nur neutrale Titel, bei eingeschalteter Verschlüsselung gar nichts Lesbares.
+
+**Weg B – gemeinsam in der Zyklus App arbeiten.**
+
+1. Person 1 (bei der der Kalender liegt) gibt in Google Kalender den Kalender „Zyklus“ für das Google Konto von Person 2 frei, mit der Berechtigung **„Änderungen an Terminen vornehmen“**.
+2. Person 1 kopiert die **Kalender-ID** (Google Kalender → Einstellungen → Kalender „Zyklus“ → „Kalender-ID“, endet auf `@group.calendar.google.com`) und gibt sie Person 2.
+3. In Google Cloud muss einmalig der Bereich `https://www.googleapis.com/auth/calendar.events` eingetragen sein (Google Auth Platform → Datenzugriff → Bereiche hinzufügen) und Person 2 als Testnutzer.
+4. Person 2 öffnet die App → Einstellungen → Schalter **„Kalender einer anderen Person mitbenutzen“** an, Kalender-ID einfügen, dann auf „Mit Google verbinden“. Google fragt dabei die zusätzliche Berechtigung ab.
+
+Danach arbeiten beide auf denselben Terminen: Was die eine einträgt, sieht die andere nach dem nächsten Synchronisieren.
+
+**Das solltest du wissen:** Für fremde Kalender bietet Google keinen engen Zugriff an. Der Bereich `calendar.events` erlaubt der App technisch, Termine in **allen** Kalendern des jeweiligen Kontos zu sehen und zu bearbeiten. Die App selbst rührt nur den eingetragenen Kalender an (der Code liegt offen im Repository), aber die Berechtigung ist breiter als beim eigenen Kalender. Wer das nicht möchte, nimmt Weg A. Ist die Verschlüsselung an, brauchen beide dasselbe Passwort.
 
 ## Später etwas ändern
 
@@ -164,6 +183,7 @@ In der App mit Google verbinden. Der Status oben muss „synchronisiert“ zeige
 * Den Kalender „Zyklus“ nie mit jemandem teilen
 * Nie echte Daten, Exporte oder Passwörter in den Projektordner legen, das Repository ist öffentlich
 * Die Google App im Status „Testen“ lassen
+* Den Bereich `calendar.events` nur eintragen, wenn ihr wirklich zu zweit denselben Kalender nutzt
 * Auf fremden Geräten die Option „Nichts lokal speichern“ nutzen und nach der Benutzung trennen
 * Alle Vorhersagen sind Schätzungen und nicht zur Verhütung geeignet
 
@@ -273,6 +293,14 @@ Standard-Scope ist ausschließlich `https://www.googleapis.com/auth/calendar.app
 2. Button „Kalender in Google suchen“: fordert einmalig zusätzlich `https://www.googleapis.com/auth/calendar.calendarlist.readonly` an (inkrementell, Google zeigt dafür einen eigenen Zustimmungsdialog). Dieser Scope zeigt nur die Liste der Kalender (Namen, IDs), keine Termine. Die App nutzt ihn ausschließlich für diese Suche und wählt den Kalender mit dem passenden Namen bzw. der App-Beschreibung.
 
 Der breitere Scope wird also nicht standardmäßig angefragt, sondern nur auf ausdrücklichen Klick.
+
+Für den **geteilten Kalender** (Einstellung „Kalender einer anderen Person mitbenutzen“) reicht `calendar.app.created` nicht: Er gilt nur für Kalender, die die App im eigenen Konto angelegt hat. Ist der Schalter an, fragt die App zusätzlich `https://www.googleapis.com/auth/calendar.events` an (Termine in allen Kalendern des Kontos lesen und schreiben) — einen engeren Scope für einzelne fremde Kalender gibt es bei Google nicht. Die App verwendet dann ausschließlich die eingetragene Kalender-ID (`activeCalendarId()`), legt keinen eigenen Kalender an und prüft den Zugriff über `events.list` statt `calendars.get` (letzteres ist mit dem Termin-Scope nicht erlaubt). Beim Umschalten wird der lokale Cache geleert und der Zugriff neu angefragt.
+
+### Anmeldung beim Start
+
+Beim Öffnen zeigt `maybeShowWelcome()` einen Startbildschirm mit einem großen Verbinden-Knopf, sobald kein gültiges Token in der Tab-Sitzung liegt. Grund: Ein Token lässt sich nur aus einem echten Tipp heraus anfordern, sonst blockieren Browser das Google-Fenster. Der Startbildschirm macht die Anmeldung zum ersten bewussten Schritt statt zu einer Überraschung mitten in der Nutzung; er lässt sich mit „Später, erst mal ohne Verbindung“ überspringen (Einträge landen dann in der Warteschlange). Läuft das Token während der Nutzung ab, versucht die App weiterhin eine stille Erneuerung beim nächsten Tipp und zeigt den Startbildschirm nur, wenn das fehlschlägt. Kommt die App aus dem Hintergrund zurück (`visibilitychange`), wird der Startbildschirm ebenfalls angeboten.
+
+Ein dauerhaftes Anmelden ist mit einer reinen Browser-App nicht möglich: Google gibt clientseitigen Apps nur Access Tokens mit etwa einer Stunde Gültigkeit und keine Refresh Tokens. Dafür bräuchte es ein eigenes Backend mit Client Secret, das ein Refresh Token speichert — also einen Server mit dauerhaftem Zugriff auf die Gesundheitsdaten. Das ist bewusst nicht gebaut.
 
 ## Vorhersage
 

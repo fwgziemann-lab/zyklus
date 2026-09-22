@@ -483,6 +483,7 @@
             <input type="text" id="set-client-id" placeholder="…apps.googleusercontent.com" autocomplete="off" spellcheck="false">
             <div class="small muted">Nur nötig, wenn die Client ID nicht im Code hinterlegt ist.</div>
           </div>
+          <div id="own-calendar-block">
           <div class="field">
             <label for="set-calendar-name">Name des Kalenders in Google</label>
             <input type="text" id="set-calendar-name" placeholder="Zyklus" maxlength="60">
@@ -495,6 +496,15 @@
               <button class="btn small" id="btn-find-calendar" type="button">Kalender in Google suchen</button>
               <span class="small muted">Fragt einmalig die Berechtigung „Kalenderliste lesen“ ab.</span>
             </div>
+          </div>
+          </div>
+
+          <label class="switch"><span>Kalender einer anderen Person mitbenutzen<div class="desc">Gemeinsamer Zyklus-Kalender: Beide sehen und bearbeiten dieselben Einträge. Die andere Person muss den Kalender in Google für dich freigeben, mit dem Recht „Änderungen an Terminen vornehmen“.</div></span><input type="checkbox" id="set-shared"></label>
+          <div class="field" id="set-shared-row" hidden>
+            <label for="set-shared-id">Kalender ID des geteilten Kalenders</label>
+            <input type="text" id="set-shared-id" placeholder="…@group.calendar.google.com" autocomplete="off" spellcheck="false" class="code">
+            <div class="small muted">Die andere Person findet die ID in Google Kalender unter Einstellungen → Kalender „Zyklus“ → „Kalender-ID“.</div>
+            <div class="notice warn" style="margin-top:.5rem">Dafür fragt die App eine weitere Berechtigung an: „Termine in allen Kalendern sehen und bearbeiten“. Google bietet für fremde Kalender keinen engeren Zugriff an. Dieser Bereich muss in Google Cloud eingetragen sein (siehe README).</div>
           </div>
         </div>
       </div>
@@ -629,6 +639,25 @@
         <button class="btn primary" type="submit" id="editor-save">Speichern</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- ================= Startbildschirm (Anmeldung zuerst) ================= -->
+  <dialog id="welcome" aria-labelledby="welcome-title">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h2 id="welcome-title">Willkommen</h2>
+      </div>
+      <div class="sheet-body" style="text-align:center">
+        <img src="icon.svg" alt="" width="64" height="64" style="border-radius:16px;margin:.5rem auto 1rem;display:block">
+        <p id="welcome-text" class="small"></p>
+        <p class="small muted" id="welcome-queue" hidden></p>
+        <div class="small" id="welcome-error" style="color:var(--danger);min-height:1.2em"></div>
+      </div>
+      <div class="sheet-foot" style="flex-direction:column;gap:.5rem">
+        <button class="btn primary big" id="welcome-connect" type="button">Mit Google verbinden</button>
+        <button class="btn ghost small" id="welcome-skip" type="button">Später, erst mal ohne Verbindung</button>
+      </div>
+    </div>
   </dialog>
 
   <!-- ================= Passwort-Dialog (Verschlüsselung) ================= -->

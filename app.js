@@ -24,12 +24,14 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.4.1';
+  const APP_VERSION = '0.5.0';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';
   const SCOPE_MAIN = 'https://www.googleapis.com/auth/calendar.app.created';
   const SCOPE_LIST = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+  // Nur für den geteilten Kalender einer anderen Person nötig (siehe README, Abschnitt Scopes)
+  const SCOPE_SHARED = 'https://www.googleapis.com/auth/calendar.events';
   const API = 'https://www.googleapis.com/calendar/v3/';
   const LOAD_PAST_DAYS = 3 * 365;
   const LOAD_FUTURE_DAYS = 365;
@@ -39,6 +41,8 @@
     clientId: '',
     calendarId: '',
     calendarName: 'Zyklus',
+    sharedMode: false,          // Kalender einer anderen Person mitbenutzen
+    sharedCalendarId: '',
     defaultCycle: 28,
     defaultPeriod: 5,
     discreet: false,
@@ -139,6 +143,14 @@
   function clientId() {
     return (state.settings.clientId || META_CLIENT_ID || '').trim();
   }
+  /** Der Kalender, mit dem gerade gearbeitet wird (eigener oder geteilter). */
+  function activeCalendarId() {
+    return state.settings.sharedMode ? state.settings.sharedCalendarId.trim() : state.settings.calendarId;
+  }
+  /** Im geteilten Modus braucht die App Zugriff auf Termine fremder Kalender. */
+  function neededScope() {
+    return state.settings.sharedMode ? SCOPE_MAIN + ' ' + SCOPE_SHARED : SCOPE_MAIN;
+  }
 
   /* ================================================================== */
   /* 4. Google Sync                                                      */
@@ -164,11 +176,11 @@
       if (!gisReady()) return reject(new Error('Google Anmeldung ist noch nicht geladen. Bitte kurz warten und erneut tippen.'));
       const id = clientId();
       if (!id) return reject(new Error('Keine Google Client ID hinterlegt. Bitte in den Einstellungen eintragen.'));
-      const scope = opts.scope || SCOPE_MAIN;
-      if (!state.auth.client || state.auth.clientIdUsed !== id) {
+      const scope = opts.scope || neededScope();
+      if (!state.auth.client || state.auth.clientIdUsed !== id || state.auth.scopeUsed !== scope) {
         state.auth.client = google.accounts.oauth2.initTokenClient({
           client_id: id,
-          scope: SCOPE_MAIN,
+          scope: scope,
           callback: function (resp) {
             const p = state.auth.pending; state.auth.pending = null;
             if (!resp || resp.error) {
@@ -189,6 +201,7 @@
           }
         });
         state.auth.clientIdUsed = id;
+        state.auth.scopeUsed = scope;
       }
       state.auth.pending = { resolve: resolve, reject: reject };
       state.auth.client.requestAccessToken({
@@ -275,6 +288,20 @@
 
   async function ensureCalendar() {
     const s = state.settings;
+    if (s.sharedMode) {
+      const id = s.sharedCalendarId.trim();
+      if (!id) throw new Error('Keine Kalender ID für den geteilten Kalender eingetragen.');
+      // calendars.get ist mit dem Termin-Scope nicht erlaubt, deshalb über events.list prüfen
+      try {
+        await api('GET', 'calendars/' + encodeURIComponent(id) + '/events', undefined, { maxResults: 1, fields: 'kind' });
+      } catch (e) {
+        if (e instanceof AuthError) throw e;
+        if (e.status === 404) throw new Error('Geteilter Kalender nicht gefunden. Stimmt die Kalender ID?');
+        if (e.status === 403) throw new Error('Kein Zugriff auf den geteilten Kalender. Wurde er für dein Konto freigegeben?');
+        throw e;
+      }
+      return id;
+    }
     if (s.calendarId) {
       try {
         await api('GET', 'calendars/' + encodeURIComponent(s.calendarId));
@@ -438,7 +465,7 @@
   }
 
   async function loadRemote() {
-    const calId = state.settings.calendarId;
+    const calId = activeCalendarId();
     const t = today();
     const entries = {}, remote = { days: {}, predictions: {}, fertile: {}, predSig: state.remote.predSig };
     let pageToken = null, locked = 0;
@@ -487,7 +514,7 @@
   }
 
   async function pushDay(entry) {
-    const calId = state.settings.calendarId;
+    const calId = activeCalendarId();
     const id = C.eventId('day', entry.date);
     const body = await encodeForRemote(C.buildDayEvent(entry, { periods: state.pred.periods, discreet: state.settings.discreet || encryptionOn() }));
     await upsertEvent(calId, id, body);
@@ -515,7 +542,7 @@
   }
 
   async function flushQueue() {
-    const calId = state.settings.calendarId;
+    const calId = activeCalendarId();
     while (state.queue.length) {
       const op = state.queue[0];
       if (op.op === 'upsert') {
@@ -534,7 +561,7 @@
   /* ---- 4.6 Vorhersagen nach Google schreiben ---- */
 
   async function syncPredictions() {
-    const s = state.settings, calId = s.calendarId, p = state.pred;
+    const s = state.settings, calId = activeCalendarId(), p = state.pred;
     const ctx = { discreet: s.discreet || encryptionOn(), reminderTime: s.reminder ? s.reminderTime : null };
     const wantPred = {}, wantFert = {};
     if (p && p.predictions.length) {
@@ -649,7 +676,10 @@
     if (ev.target.closest && ev.target.closest('#btn-connect, #btn-connect-top, #btn-sync, #btn-disconnect, #btn-find-calendar')) return;
     autoRenewTried = true;
     setStatus('busy', 'Verbindung wird erneuert …');
-    requestToken({ prompt: '' }).then(fullSync).catch(function () { setStatus('warn', 'Verbindung erneuern'); });
+    requestToken({ prompt: '' }).then(fullSync).catch(function () {
+      setStatus('warn', 'Verbindung erneuern');
+      maybeShowWelcome();
+    });
   }
 
   /** Aus einem Klick heraus: anmelden (oder Token erneuern) und dann synchronisieren. */
@@ -726,7 +756,7 @@
     $('btn-connect').disabled = hasToken();
     $('btn-sync').disabled = !hasToken();
     const gs = $('google-status');
-    if (hasToken()) gs.textContent = 'Verbunden. Kalender: ' + (state.settings.calendarId ? state.settings.calendarName || 'Zyklus' : 'wird angelegt') + '. Status: ' + (state.status.text || '');
+    if (hasToken()) gs.textContent = 'Verbunden. Kalender: ' + (state.settings.sharedMode ? 'geteilter Kalender' : (state.settings.calendarId ? state.settings.calendarName || 'Zyklus' : 'wird angelegt')) + '. Status: ' + (state.status.text || '');
     else if (state.settings.connectedBefore) gs.textContent = 'Verbindung abgelaufen. Einträge werden lokal gesammelt und beim nächsten Verbinden hochgeladen.' + (state.queue.length ? ' Offen: ' + state.queue.length : '');
     else gs.textContent = 'Nicht verbunden. Einträge werden nur in diesem Browser gespeichert.';
   }
@@ -981,6 +1011,10 @@
     $('set-client-id').placeholder = META_CLIENT_ID ? 'im Code hinterlegt: ' + META_CLIENT_ID.slice(0, 18) + '…' : '…apps.googleusercontent.com';
     $('set-calendar-name').value = s.calendarName;
     $('set-calendar-id').value = s.calendarId;
+    $('set-shared').checked = s.sharedMode;
+    $('set-shared-id').value = s.sharedCalendarId;
+    $('set-shared-row').hidden = !s.sharedMode;
+    $('own-calendar-block').hidden = s.sharedMode;
     $('set-cycle').value = s.defaultCycle;
     $('set-period').value = s.defaultPeriod;
     $('set-write-pred').checked = s.writePredictions;
@@ -1006,6 +1040,19 @@
     onChange('set-client-id', function (i) { state.settings.clientId = i.value.trim(); state.auth.client = null; });
     onChange('set-calendar-name', function (i) { state.settings.calendarName = i.value.trim().slice(0, 60) || 'Zyklus'; });
     onChange('set-calendar-id', function (i) { state.settings.calendarId = i.value.trim(); });
+    onChange('set-shared-id', function (i) { state.settings.sharedCalendarId = i.value.trim(); });
+    $('set-shared').addEventListener('change', function () {
+      // Kein Bestätigungsfenster: Die Folgen stehen als Hinweis direkt unter dem Schalter.
+      const on = this.checked;
+      state.settings.sharedMode = on;
+      // Zugriff neu anfragen und den lokalen Stand des anderen Kalenders holen
+      state.auth.token = null; state.auth.expiresAt = 0; state.auth.client = null;
+      saveToken();
+      state.entries = {}; state.queue = [];
+      state.remote = { days: {}, predictions: {}, fertile: {}, predSig: '' };
+      persist(); recompute(); render();
+      toast(on ? 'Jetzt Kalender ID eintragen und verbinden' : 'Zurück zum eigenen Kalender');
+    });
     onChange('set-cycle', function (i) { state.settings.defaultCycle = Math.max(15, Math.min(90, parseInt(i.value, 10) || 28)); });
     onChange('set-period', function (i) { state.settings.defaultPeriod = Math.max(1, Math.min(14, parseInt(i.value, 10) || 5)); });
     onChange('set-write-pred', function (i) { state.settings.writePredictions = i.checked; pushChanges(); });
@@ -1058,6 +1105,46 @@
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', importJSON);
     $('btn-delete-all').addEventListener('click', deleteAll);
+  }
+
+  /* ---- 5.6a Startbildschirm (erst anmelden, dann die App) ---- */
+
+  /**
+   * Zeigt beim Öffnen einen Startbildschirm mit einem großen Verbinden-Knopf.
+   * So ist die Anmeldung der erste bewusste Tipp, statt dass später unvermittelt
+   * ein Google-Fenster aufgeht (das Browser sonst auch blockieren würden).
+   */
+  function maybeShowWelcome() {
+    if (hasToken() || !clientId()) return;
+    const dlg = $('welcome');
+    if (dlg.open) return;
+    const again = state.settings.connectedBefore;
+    $('welcome-title').textContent = again ? 'Willkommen zurück' : 'Zyklus einrichten';
+    $('welcome-text').textContent = again
+      ? 'Google gibt dieser App den Zugang immer nur für eine Stunde. Einmal tippen, dann ist alles wieder synchron – meist ohne Passwort, weil du im Browser schon bei Google angemeldet bist.'
+      : 'Deine Einträge werden in einem eigenen, privaten Google Kalender gespeichert. Dafür brauchst du einmal die Verbindung zu deinem Google Konto.';
+    $('welcome-connect').textContent = again ? 'Verbindung erneuern' : 'Mit Google verbinden';
+    $('welcome-queue').hidden = !state.queue.length;
+    $('welcome-queue').textContent = state.queue.length + ' Änderung' + (state.queue.length === 1 ? '' : 'en') + ' wartet noch auf das Hochladen.';
+    dlg.showModal();
+  }
+
+  function bindWelcome() {
+    $('welcome-connect').addEventListener('click', async function () {
+      $('welcome-connect').disabled = true;
+      $('welcome-connect').textContent = 'Anmeldung läuft …';
+      try {
+        await requestToken({});
+        $('welcome').close();
+        fullSync();
+      } catch (e) {
+        $('welcome-error').textContent = e.message || String(e);
+      } finally {
+        $('welcome-connect').disabled = false;
+        $('welcome-connect').textContent = state.settings.connectedBefore ? 'Verbindung erneuern' : 'Mit Google verbinden';
+      }
+    });
+    $('welcome-skip').addEventListener('click', function () { $('welcome').close(); });
   }
 
   /* ---- 5.6b Passwort-Dialog (Verschlüsselung) ---- */
@@ -1193,10 +1280,10 @@
     if (!confirm('Wirklich ALLE Einträge löschen? Das betrifft auch den Google Kalender „' + state.settings.calendarName + '“.')) return;
     if (!confirm('Letzte Sicherheitsfrage: Alle Zyklusdaten unwiderruflich löschen?')) return;
     try {
-      if (hasToken() && state.settings.calendarId) {
+      if (hasToken() && activeCalendarId()) {
         setStatus('busy', 'lösche …');
         const remote = await loadRemote();
-        const calId = state.settings.calendarId;
+        const calId = activeCalendarId();
         const ids = [].concat(
           Object.keys(remote.remote.days).map(function (d) { return remote.remote.days[d]; }),
           Object.keys(remote.remote.predictions).map(function (d) { return remote.remote.predictions[d]; }),
@@ -1264,6 +1351,12 @@
     else setStatus('', 'nicht verbunden');
     render();
     document.addEventListener('pointerup', autoRenewOnGesture, true);
+    bindWelcome();
+    if (!cached) setTimeout(maybeShowWelcome, 300);
+    // Nach Rückkehr zur App (Tab-Wechsel, Handy entsperrt) erneut anbieten
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && !hasToken() && state.settings.connectedBefore) maybeShowWelcome();
+    });
     // Nach Ablauf darf beim nächsten Tipp erneut versucht werden
     setInterval(function () { if (hasToken()) autoRenewTried = false; }, 30000);
 
