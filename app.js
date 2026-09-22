@@ -24,7 +24,7 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.4.0';
+  const APP_VERSION = '0.4.1';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';
@@ -690,12 +690,20 @@
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
   let toastTimer = null;
-  function toast(msg) {
+  /** Kurze Meldung unten; optional mit einer Aktion, z. B. „Rückgängig“. */
+  function toast(msg, action) {
     const t = $('toast');
-    t.textContent = msg;
+    clear(t);
+    t.appendChild(document.createTextNode(msg));
+    if (action) {
+      t.appendChild(el('button', { type: 'button', class: 'toast-action', text: action.label, onclick: function () {
+        t.classList.remove('show'); action.fn();
+      } }));
+    }
+    t.classList.toggle('actionable', !!action);
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, action ? 6000 : 2600);
   }
 
   function setStatus(kind, text) {
@@ -877,10 +885,12 @@
     $('editor-form').addEventListener('submit', function (ev) { ev.preventDefault(); saveFromEditor(); });
     $('editor-delete').addEventListener('click', function () {
       const date = state.editing.entry.date;
-      if (state.entries[date] && !confirm('Eintrag vom ' + C.formatDE(date) + ' löschen?')) return;
+      const previous = state.entries[date] ? JSON.parse(JSON.stringify(state.entries[date])) : null;
       applyEntry(C.emptyEntry(date));
       $('editor').close();
-      toast('Eintrag gelöscht');
+      toast('Eintrag vom ' + C.formatShortDE(date) + ' gelöscht', previous ? { label: 'Rückgängig', fn: function () {
+        applyEntry(C.normalizeEntry(previous)); toast('Wiederhergestellt');
+      } } : null);
     });
   }
 
@@ -1043,6 +1053,7 @@
       } catch (e) { handleSyncError(e); render(); }
     });
 
+    $('btn-report-problem').addEventListener('click', reportProblem);
     $('btn-export').addEventListener('click', exportJSON);
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', importJSON);
@@ -1094,6 +1105,49 @@
         $('pw-submit').textContent = pwMode === 'setup' ? 'Einschalten' : 'Entsperren';
       }
     });
+  }
+
+  /* ---- 5.6c Problem melden (Mail mit Kontext) ---- */
+
+  const SUPPORT_MAIL = 'fwgzie@gmail.com';
+
+  /** Kurzfassung der zuletzt bearbeiteten Einträge als Kontext für die Fehlermeldung. */
+  function recentEntriesSummary(n) {
+    const list = Object.keys(state.entries).map(function (k) { return state.entries[k]; });
+    list.sort(function (a, b) { return (b.updatedAt || '') < (a.updatedAt || '') ? -1 : 1; });
+    return list.slice(0, n).map(function (e) {
+      const parts = ['Blutung ' + C.BLEEDING_LABEL[e.bleeding]];
+      if (e.periodStart) parts.push('Periodenstart');
+      if (e.pain) parts.push('Schmerz ' + e.pain + '/10');
+      if (e.symptoms.length) parts.push(e.symptoms.map(function (x) { return C.SYMPTOM_LABEL[x]; }).join('/'));
+      if (e.mood) parts.push('Stimmung ' + C.MOOD_LABEL[e.mood]);
+      if (e.note) parts.push('Notiz vorhanden');
+      return '- ' + C.formatDE(e.date) + ': ' + parts.join(', ') + (e.updatedAt ? ' (gespeichert ' + e.updatedAt.slice(0, 16).replace('T', ' ') + ')' : '');
+    }).join('\n') || '- keine Einträge';
+  }
+
+  function reportProblem() { window.location.href = buildProblemMail(); }
+
+  function buildProblemMail() {
+    const p = state.pred;
+    const lines = [
+      'Kontext (automatisch eingefügt, bitte stehen lassen):',
+      'App-Version: ' + APP_VERSION + ' · ' + C.todayISO(),
+      'Status: ' + (state.status.text || '–') + (state.queue.length ? ' · offen: ' + state.queue.length : ''),
+      'Verbunden: ' + (hasToken() ? 'ja' : 'nein') + ' · Verschlüsselung: ' + (encryptionOn() ? (hasKey() ? 'an, entsperrt' : 'an, gesperrt') : 'aus') + ' · Diskret: ' + (state.settings.discreet ? 'an' : 'aus'),
+      'Einträge: ' + Object.keys(state.entries).length + ' · Zyklustag: ' + (p.cycleDay || '–') + ' · Phase: ' + (C.PHASE_LABEL[p.phase] || '–'),
+      'Browser: ' + navigator.userAgent,
+      '',
+      'Letzte Eingaben:',
+      recentEntriesSummary(5),
+      '',
+      '------------------------------------------------------------',
+      'Bitte oberhalb dieser Linie nichts löschen. Beschreibe dein Problem unterhalb:',
+      '------------------------------------------------------------',
+      '',
+      ''
+    ];
+    return 'mailto:' + SUPPORT_MAIL + '?subject=' + encodeURIComponent('Zyklus App Problem') + '&body=' + encodeURIComponent(lines.join('\n'));
   }
 
   /* ---- 5.7 Export / Import / Löschen ---- */
@@ -1219,7 +1273,7 @@
   }
 
   // Für die Konsole / Fehlersuche
-  window.ZyklusApp = { state: state, fullSync: fullSync, pushChanges: pushChanges, encodeForRemote: encodeForRemote, decodeFromRemote: decodeFromRemote, version: APP_VERSION };
+  window.ZyklusApp = { state: state, fullSync: fullSync, pushChanges: pushChanges, encodeForRemote: encodeForRemote, decodeFromRemote: decodeFromRemote, buildProblemMail: buildProblemMail, version: APP_VERSION };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

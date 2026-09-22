@@ -136,6 +136,8 @@ Tipp: Wenn Termine auf dem Sperrbildschirm auftauchen, in den Einstellungen der 
 
 ## Probleme und Lösungen
 
+**Problem melden:** In der App unter Einstellungen → „Hilfe“ auf „Problem melden“ tippen. Es öffnet sich das Mailprogramm mit einer vorbereiteten Nachricht (Betreff „Zyklus App Problem“), die oben automatisch den Kontext enthält (App-Version, Status, die letzten Eingaben). Unter der Trennlinie das Problem beschreiben und abschicken.
+
 **„Fehler 400: origin_mismatch“ bei der Anmeldung**
 Die JavaScript Quelle in Google Cloud stimmt nicht. Unter Google Auth Platform → Clients prüfen, ob dort genau `https://fwgziemann-lab.github.io` steht, ohne Pfad und ohne Schrägstrich am Ende. Nach einer Änderung kann es ein paar Minuten dauern, bis sie greift.
 
