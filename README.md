@@ -56,7 +56,7 @@ Hinweis: Google ändert die Oberfläche öfter. Die Bezeichnungen können leicht
    * Anwendungstyp: **Webanwendung**
    * Name: **Zyklus Web**
    * Autorisierte JavaScript Quellen, beide eintragen:
-     `https://BENUTZERNAME.github.io`
+     `https://fwgziemann-lab.github.io`
      `http://localhost:8080`
    * Weiterleitungs URIs leer lassen
    * Erstellen
@@ -69,7 +69,7 @@ Hinweis: Google ändert die Oberfläche öfter. Die Bezeichnungen können leicht
 
 Öffne PROMPT.md und ersetze oben die beiden Platzhalter:
 
-* `BENUTZERNAME_HIER_EINTRAGEN` durch deinen GitHub Benutzernamen
+* `BENUTZERNAME_HIER_EINTRAGEN` durch deinen GitHub Benutzernamen (hier bereits erledigt: `fwgziemann-lab`)
 * `CLIENT_ID_HIER_EINTRAGEN` durch die Client ID aus Schritt 2
 
 
@@ -106,7 +106,7 @@ Wird nur gebaut, wenn du es ausdrücklich sagst (siehe unten).
 ## Schritt 5: Auf dem Handy nutzen
 
 Die App erreichst du unter:
-`https://BENUTZERNAME.github.io/zyklus/`
+`https://fwgziemann-lab.github.io/zyklus/`
 
 * **iPhone (Safari):** Teilen → „Zum Home Bildschirm“
 * **Android (Chrome):** Menü → „Zum Startbildschirm hinzufügen“
@@ -136,7 +136,7 @@ Tipp: Wenn Termine auf dem Sperrbildschirm auftauchen, in den Einstellungen der 
 ## Probleme und Lösungen
 
 **„Fehler 400: origin_mismatch“ bei der Anmeldung**
-Die JavaScript Quelle in Google Cloud stimmt nicht. Unter Google Auth Platform → Clients prüfen, ob dort genau `https://BENUTZERNAME.github.io` steht, ohne Pfad und ohne Schrägstrich am Ende. Nach einer Änderung kann es ein paar Minuten dauern, bis sie greift.
+Die JavaScript Quelle in Google Cloud stimmt nicht. Unter Google Auth Platform → Clients prüfen, ob dort genau `https://fwgziemann-lab.github.io` steht, ohne Pfad und ohne Schrägstrich am Ende. Nach einer Änderung kann es ein paar Minuten dauern, bis sie greift.
 
 **„Zugriff blockiert“ oder „access_denied“**
 Das Google Konto ist nicht als Testnutzer eingetragen. Unter Google Auth Platform → Zielgruppe → Testnutzer hinzufügen.

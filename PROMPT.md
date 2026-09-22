@@ -2,8 +2,8 @@
 
 Im aktuellen Ordner liegen README.md (meine Bauanleitung) und PROMPT.md (dieser Auftrag). Lies beide zuerst.
 
-Mein GitHub Benutzername: BENUTZERNAME_HIER_EINTRAGEN
-Google OAuth Client ID: CLIENT_ID_HIER_EINTRAGEN (falls noch leer, frag mich in Phase 2 danach)
+Mein GitHub Benutzername: fwgziemann-lab
+Google OAuth Client ID: 762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com (falls noch leer, frag mich in Phase 2 danach)
 
 Baue mir eine Web App zum Tracken des Menstruationszyklus als einzelne HTML Datei (index.html, HTML, CSS und Vanilla JavaScript, kein Build Schritt, kein Framework). Die App wird über GitHub Pages veröffentlicht, damit auf meinem Rechner im Alltag nichts laufen muss und sie auch auf dem Handy funktioniert. Die Daten werden in einem eigenen Google Kalender gespeichert, sodass man alle Einträge auch direkt in Google Kalender sehen kann. Sprache der Oberfläche: Deutsch.
 
@@ -70,7 +70,7 @@ Schreibe für diese Funktionen Tests (test.html, die im Browser alle Fälle prü
 
 ## 6. Hosting über GitHub Pages
 • Lege auf meinem GitHub Konto ein öffentliches Repository „zyklus“ an (öffentlich, weil GitHub Pages im kostenlosen Tarif das braucht), pushe den Code und aktiviere GitHub Pages aus dem Hauptbranch (main, Ordner root). Nutze dafür die GitHub CLI (gh). Falls sie fehlt oder ich nicht angemeldet bin, hilf mir dabei und sag mir genau, was ich selbst tun muss.
-• Die App läuft unter https://BENUTZERNAME.github.io/zyklus/, also nur relative Pfade verwenden, damit sie im Unterpfad funktioniert.
+• Die App läuft unter https://fwgziemann-lab.github.io/zyklus/, also nur relative Pfade verwenden, damit sie im Unterpfad funktioniert.
 • Niemals Geheimnisse oder persönliche Daten ins Repository: keine echten Testdaten, keine JSON Exporte, keine Tokens. Passende .gitignore anlegen, die z. B. alle JSON Exporte ausschließt.
 • Für die lokale Entwicklung einen einfachen Server auf Port 8080 nutzen (http://localhost:8080 ist in Google als Quelle eingetragen). Das ist nur zum Testen, im Alltag läuft nichts lokal.
 • Nach jeder abgeschlossenen Phase committen und pushen und mir die Live Adresse nennen.

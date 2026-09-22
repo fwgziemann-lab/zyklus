@@ -230,17 +230,20 @@
       state.auth.token = null; state.auth.expiresAt = 0;
       throw new AuthError('Verbindung abgelaufen');
     }
-    if ((res.status === 403 || res.status === 429 || res.status >= 500) && (attempt || 0) < 3) {
-      // Ratenlimit oder Serverfehler: kurz warten und erneut versuchen
-      await new Promise(function (r) { setTimeout(r, 800 * Math.pow(2, attempt || 0)); });
-      return api(method, path, body, query, (attempt || 0) + 1);
-    }
     if (res.status === 204) return null;
     let data = null;
     try { data = await res.json(); } catch (e) { data = null; }
     if (!res.ok) {
+      const reason = (data && data.error && data.error.errors && data.error.errors[0] && data.error.errors[0].reason) || '';
+      const rateLimited = res.status === 429 || (res.status === 403 && /rateLimit|quota/i.test(reason));
+      if ((rateLimited || res.status >= 500) && (attempt || 0) < 3) {
+        // Ratenlimit oder Serverfehler: kurz warten und erneut versuchen
+        await new Promise(function (r) { setTimeout(r, 800 * Math.pow(2, attempt || 0)); });
+        return api(method, path, body, query, (attempt || 0) + 1);
+      }
       const err = new Error((data && data.error && data.error.message) || ('HTTP ' + res.status));
       err.status = res.status;
+      err.reason = reason;
       throw err;
     }
     return data;
@@ -257,7 +260,10 @@
       } catch (e) {
         if (e instanceof AuthError) throw e;
         if (e.status !== 404 && e.status !== 403) throw e;
-        // Kalender existiert nicht mehr (oder gehört nicht der App) → neu anlegen
+        // Kalender nicht gefunden (gelöscht, falsche ID oder nicht von der App angelegt)
+        if (!confirm('Der Kalender mit der gespeicherten ID wurde nicht gefunden.\n\nNeuen Kalender „' + (s.calendarName || 'Zyklus') + '“ anlegen? (Abbrechen, wenn du die Kalender ID in den Einstellungen prüfen willst.)')) {
+          throw new Error('Kalender nicht gefunden. Bitte Kalender ID prüfen.');
+        }
         s.calendarId = '';
       }
     }
