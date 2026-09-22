@@ -25,7 +25,7 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.1.0';
+  const APP_VERSION = '0.3.0';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';

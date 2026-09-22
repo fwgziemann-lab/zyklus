@@ -5,7 +5,7 @@
  * direkt beim nächsten Laden mit Verbindung. Es werden nur eigene Dateien
  * gecacht, nie Google-Antworten oder Nutzerdaten.
  */
-const CACHE = 'zyklus-shell-v1';
+const CACHE = 'zyklus-shell-v2';
 const SHELL = ['./', './index.html', './core.js', './app.js', './stats.js', './icon.svg', './icon-180.png', './manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {

@@ -52,6 +52,7 @@ Hinweis: Google ändert die Oberfläche öfter. Die Bezeichnungen können leicht
 6. Unter **Datenzugriff** → „Bereiche hinzufügen“ → nach **calendar.app.created** suchen, auswählen und speichern. Falls der Bereich nicht in der Liste auftaucht, von Hand eintragen:
    `https://www.googleapis.com/auth/calendar.app.created`
    Dieser Bereich erlaubt der App nur den Zugriff auf den Kalender, den sie selbst anlegt. Deine anderen Termine sieht sie nicht.
+   Optional zusätzlich `https://www.googleapis.com/auth/calendar.calendarlist.readonly` eintragen: Den braucht nur der Button „Kalender in Google suchen“ auf einem neuen Gerät (siehe Technische Doku, Abschnitt Scopes). Ohne ihn kann man die Kalender ID auch von Hand einfügen.
 7. Unter **Clients** → „Client erstellen“:
    * Anwendungstyp: **Webanwendung**
    * Name: **Zyklus Web**
@@ -167,7 +168,137 @@ In der App mit Google verbinden. Der Status oben muss „synchronisiert“ zeige
 
 ## Dateien im Projekt
 
-* **index.html**: die App
-* **test.html**: Tests für die Berechnung
-* **README.md**: diese Anleitung, unten ergänzt Claude Code die technische Doku
+* **index.html**: die App (Aufbau und Gestaltung)
+* **core.js**: die Berechnung (Perioden, Zyklen, Vorhersage, Statistik, Abbildung auf Google-Termine)
+* **app.js**: Speicher, Google-Anbindung und Bedienoberfläche
+* **stats.js**: Statistik und Arztbericht
+* **test.html**, **tests.js**, **test-runner.js**: Tests für die Berechnung
+* **sw.js**, **manifest.webmanifest**, **icon.svg**, **icon-180.png**, **icon-512.png**: Offline-Start und Startbildschirm-Icon
+* **README.md**: diese Anleitung, unten die technische Doku
 * **PROMPT.md**: der ursprüngliche Auftrag an Claude Code
+
+Die App besteht aus mehreren Dateien statt einer einzigen, weil die Berechnung so von den Tests mitbenutzt wird und die Content Security Policy Skripte nur aus eigenen Dateien erlaubt (kein `unsafe-inline`). Es gibt trotzdem keinen Build-Schritt und kein Framework.
+
+
+---
+
+# Technische Doku
+
+Live: https://fwgziemann-lab.github.io/zyklus/ · Repository: https://github.com/fwgziemann-lab/zyklus
+
+## Aufbau des Codes
+
+| Datei | Inhalt |
+|---|---|
+| `index.html` | Markup aller Ansichten (Kalender, Statistik, Bericht, Einstellungen, Tageseditor als `<dialog>`), CSS mit Light/Dark-Variablen, CSP-Meta-Tag, Meta-Tag `google-client-id` |
+| `core.js` | Reine Funktionen ohne DOM/Netz: Datenmodell und Labels, Datumsrechnung, Periodenerkennung, Vorhersage, Statistik, Abbildung auf Google-Termine. Exportiert `window.ZyklusCore` |
+| `app.js` | Zustand, Speicher (localStorage nur als Cache), Google Sync (Anmeldung, REST-Aufrufe, Laden, Warteschlange, Vorhersagen), UI (Übersicht, Kalender, Editor, Einstellungen, Export/Import). Exportiert `window.ZyklusApp` für die Konsole |
+| `stats.js` | Statistik-Ansicht (KPIs, SVG-Liniendiagramm, SVG-Heatmap, Tabelle) und Arztbericht |
+| `sw.js` | Service Worker: eigene Dateien „erst Netz, sonst Cache“, damit die App offline öffnet. Google-Antworten werden nie gecacht |
+| `tests.js` | Tests für `core.js`; `test.html` zeigt sie im Browser, `test-runner.js` rendert die Liste |
+
+Datumsangaben sind überall Strings `YYYY-MM-DD`. Gerechnet wird in UTC-Tagen (`Date.UTC`), damit Sommerzeit und Zeitzonen keine Off-by-one-Fehler erzeugen. Nur `todayISO()` liest die lokale Uhr des Geräts.
+
+Alle Nutzerdaten werden ausschließlich über `textContent` in den DOM geschrieben (kein `innerHTML`). Das Access Token liegt nur in `state.auth` im Arbeitsspeicher.
+
+## Datenmodell
+
+Ein Tageseintrag (`core.js`, `emptyEntry`):
+
+```js
+{
+  date: "2026-03-05",          // Schlüssel, ein Eintrag pro Tag
+  bleeding: "none" | "spotting" | "light" | "medium" | "heavy" | "very_heavy",
+  periodStart: false,          // Schalter „Erster Tag der Periode“
+  pain: 0,                     // 0–10
+  painLocations: ["abdomen", "back", "head", "breast", "legs"],
+  symptoms: ["cramps", "bloating", "nausea", "fatigue", "headache", "migraine",
+             "breast_tenderness", "skin", "cravings", "digestion", "sleep"],
+  mood: null | "good" | "balanced" | "irritable" | "sad" | "anxious" | "energetic",
+  medication: false, medicationName: "", medicationCount: 0,
+  product: null | "pad" | "tampon" | "cup" | "underwear", productChanges: 0,
+  note: "",                    // max. 1000 Zeichen
+  updatedAt: "2026-03-05T18:00:00.000Z"
+}
+```
+
+Im Arbeitsspeicher liegen die Einträge als Objekt `{ "YYYY-MM-DD": entry }`. Ein Eintrag ohne jeden Inhalt (`isEntryEmpty`) wird gelöscht statt gespeichert. `normalizeEntry` bereinigt alles, was von außen kommt (Google, Import), und verwirft unbekannte Werte.
+
+Lokal (nur wenn „Nichts lokal speichern“ aus ist) gibt es vier Schlüssel in `localStorage`: `zyklus.settings`, `zyklus.entries` (Cache), `zyklus.queue` (noch nicht hochgeladene Änderungen) und `zyklus.remote` (bekannte Google-Event-IDs). Der Schalter „Nichts lokal speichern“ selbst liegt in `sessionStorage` und gilt bis zum Schließen des Tabs.
+
+JSON-Export: `{ app: "zyklus", version: 1, exportedAt, settings: { defaultCycle, defaultPeriod }, entries: [ … ] }`. Der Import akzeptiert dieses Format oder ein reines Array von Einträgen; vorhandene Tage werden überschrieben.
+
+## Termine in Google
+
+Beim ersten Verbinden legt die App per `calendars.insert` einen eigenen Kalender an (Name aus den Einstellungen, Standard „Zyklus“) und merkt sich die Kalender ID in den Einstellungen. Es werden keine Freigaben (ACLs) gesetzt.
+
+Drei Termintypen, alle ganztägig (`start.date`, `end.date` exklusiv, also Folgetag), `transparency: transparent` (blockiert keine Zeit), `visibility: private`, keine Erinnerungen außer der optionalen am Vorhersage-Termin:
+
+| Typ | Event-ID | Titel (normal) | Titel (diskret) | colorId |
+|---|---|---|---|---|
+| Tag | `ckd` + `YYYYMMDD`, z. B. `ckd20260305` | `🩸 Periode Tag 2 · stark · Schmerz 6/10`, `🩸 Schmierblutung`, `Symptome · Kopfschmerzen`, `Notiz` … | `● Z2` (mit Blutung) / `○ Z15` (ohne) | 11 Tomato (ab mittel), 4 Flamingo (leicht, Schmierblutung), 8 Graphite (ohne Blutung) |
+| Vorhersage | `ckp` + Startdatum | `Periode erwartet (ca.)`, mehrtägig; bei unregelmäßigem Zyklus über den ganzen Zeitraum | `◌ ca.` | 6 Tangerine |
+| Fruchtbares Fenster | `ckf` + Startdatum | `Fruchtbares Fenster (ca.)` | `◌ +` | 2 Sage |
+
+Event-IDs dürfen laut API nur `a–v` und `0–9` enthalten (base32hex), daher die Präfixe ohne `y` oder `z`. Deterministische IDs verhindern Duplikate: Beim Schreiben versucht die App `events.insert` mit der ID; antwortet Google mit 409 (ID existiert, auch wenn der Termin früher gelöscht wurde), folgt `events.update` mit `status: confirmed`, was den Termin überschreibt bzw. wiederbelebt. Löschen toleriert 404 und 410.
+
+Strukturierte Daten liegen in `extendedProperties.private`:
+
+```
+app   = "zyklus"            Kennung der App
+v     = "1"                 Datenversion
+type  = "day" | "prediction" | "fertile"
+date  = "YYYY-MM-DD"
+data  = JSON (nur Typ day): {"b":"heavy","ps":1,"p":6,"pl":["abdomen"],"s":["cramps"],"m":"irritable","med":1,"medn":"Ibuprofen","medc":2,"pr":"tampon","prc":5,"u":"…"}
+note  = Notiz (nur Typ day, max. 1000 Zeichen)
+```
+
+Google begrenzt jede Property auf 1024 Zeichen (Wert) und 44 Zeichen (Schlüssel); `data` bleibt mit allen Feldern weit darunter, die Notiz hat deshalb eine eigene Property und ist in der App auf 1000 Zeichen begrenzt. Beim Laden (`events.list` mit `privateExtendedProperty=app=zyklus`, `singleEvents=true`, Zeitraum 3 Jahre zurück bis 1 Jahr voraus, mit `pageToken`-Pagination, `maxResults=2500`) wertet `parseEvent` ausschließlich diese Properties aus, nie Titel oder Beschreibung. Die Beschreibung ist eine lesbare Zusammenfassung für die Google Kalender App.
+
+Sync-Ablauf (`fullSync` in `app.js`): Kalender sicherstellen → alle App-Termine laden → lokale Einträge komplett durch den Google-Stand ersetzen (Google ist die Quelle der Wahrheit; in Google gelöschte Termine verschwinden so auch in der App) → offene Änderungen aus der Warteschlange darüberlegen und hochladen → Vorhersagen abgleichen. Jede Änderung in der App landet zuerst in der Warteschlange (`zyklus.queue`, pro Datum nur die letzte Änderung) und wird sofort hochgeladen, wenn ein Token da ist; sonst beim nächsten Verbinden. Beim Speichern eines Tages werden auch die Nachbartage derselben Periode neu hochgeladen, weil sich deren Titel („Periode Tag 2“) ändern können.
+
+Vorhersagen: Bei jeder Neuberechnung vergleicht `syncPredictions` die gewünschten Vorhersage-Termine (Signatur aus Inhalt und bekannten IDs) mit dem letzten Stand. Nur bei Änderung werden veraltete Termine gelöscht und die aktuellen neu geschrieben. Die Erinnerung „einen Tag vorher um HH:MM“ wird als `reminders.overrides` mit `minutes = 24·60 − (HH·60 + MM)` am ersten Vorhersage-Termin gesetzt (ganztägige Termine beginnen um 0:00).
+
+### Anmeldung und Scopes
+
+Anmeldung über Google Identity Services (`https://accounts.google.com/gsi/client`, Token-Modell, `initTokenClient` / `requestAccessToken`). Es gibt kein Backend und kein Client Secret; die Client ID ist öffentlich und steht im Meta-Tag `google-client-id` in `index.html` (alternativ in den Einstellungen). Das Anmeldefenster wird nur aus einem Klick/Tipp heraus geöffnet, damit Popup-Blocker nicht greifen. Access Tokens gelten etwa eine Stunde; die App merkt sich den Ablauf, zeigt danach „Verbindung erneuern“ und versucht beim nächsten Speichern-Klick eine stille Erneuerung (`prompt: ''`). Beim Trennen wird das Token bei Google widerrufen (`revoke`) und der lokale Cache (Einträge, Warteschlange, bekannte IDs) gelöscht; Einstellungen inklusive Kalender ID bleiben, damit beim nächsten Verbinden kein zweiter Kalender entsteht.
+
+Standard-Scope ist ausschließlich `https://www.googleapis.com/auth/calendar.app.created`. Laut aktueller Google-Doku deckt er `calendars.insert`, `calendars.get` sowie `events.list/insert/update/delete` auf den selbst angelegten Kalendern ab, **nicht** aber `calendarList.list`. Folge: Auf einem neuen Gerät kann die App ihren Kalender nicht selbst wiederfinden, solange die Kalender ID nicht lokal bekannt ist. Dafür gibt es zwei Wege:
+
+1. Kalender ID in Google Kalender nachschlagen (Einstellungen → Kalender „Zyklus“ → „Kalender-ID“) und in den Einstellungen der App einfügen. Kein zusätzlicher Scope nötig.
+2. Button „Kalender in Google suchen“: fordert einmalig zusätzlich `https://www.googleapis.com/auth/calendar.calendarlist.readonly` an (inkrementell, Google zeigt dafür einen eigenen Zustimmungsdialog). Dieser Scope zeigt nur die Liste der Kalender (Namen, IDs), keine Termine. Die App nutzt ihn ausschließlich für diese Suche und wählt den Kalender mit dem passenden Namen bzw. der App-Beschreibung.
+
+Der breitere Scope wird also nicht standardmäßig angefragt, sondern nur auf ausdrücklichen Klick.
+
+## Vorhersage
+
+Alles in `core.js`, getestet in `tests.js`:
+
+1. **Perioden erkennen** (`detectPeriods`): Alle Tage mit Blutung (inkl. Schmierblutung) oder gesetztem Schalter „Erster Tag“ werden zu Läufen zusammengefasst; Lücken bis 2 Tage bleiben im selben Lauf. Ein Lauf ist eine Periode, wenn er einen markierten Starttag oder mindestens einen Tag mit Blutung ab „leicht“ enthält. Nur Schmierblutung ergibt keine Periode. Der Start ist der erste Tag ab „leicht“ oder ein markierter Tag; markierte Starttage teilen einen Lauf in mehrere Perioden (so lassen sich auch sehr kurze Abstände von Hand erfassen). Ende ist der letzte Blutungstag des Laufs.
+2. **Zyklen** (`computeCycles`): Zykluslänge = Tage zwischen zwei Periodenstarts. Der letzte Zyklus ist offen. Längen unter 18 oder über 50 Tagen gelten als Ausreißer: Sie bleiben in der Statistik sichtbar (orange, ⚠), zählen aber nicht für die Vorhersage.
+3. **Vorhersage** (`predict`): Zykluslänge = gerundeter Durchschnitt der bis zu 6 letzten vollständigen Zyklen ohne Ausreißer; Periodendauer = gerundeter Durchschnitt der letzten 6 Perioden. Sind weniger als 2 gültige Zyklen vorhanden, gelten die Standardwerte aus den Einstellungen (28 und 5 Tage), und die App zeigt das an. Nächster Start = letzter Start + Zykluslänge, insgesamt 3 Vorhersagen. Eisprung = erwarteter Start − 14 Tage, fruchtbares Fenster = Eisprung − 5 bis Eisprung + 1. Schwanken die gültigen Zykluslängen um mehr als 7 Tage, ist der Zyklus „unregelmäßig“: Die Vorhersage wird als Zeitraum von (letzter Start + kürzester Zyklus) bis (letzter Start + längster Zyklus) angezeigt und in Google als entsprechend langer Termin geschrieben.
+4. **Heute** (`predict` liefert `cycleDay`, `phase`, `daysUntil`, `overdueDays`): Phase „Menstruation“ während der laufenden Periode, „Follikelphase“ bis zum Tag vor dem Eisprungfenster, „Eisprung“ von Eisprung − 1 bis + 1, danach „Lutealphase“; liegt der erwartete Start in der Vergangenheit, „Periode überfällig“ mit Anzahl Tage.
+5. **Automatischer Vorschlag** (`suggestPeriodStart`): Der Schalter „Erster Tag der Periode“ wird im Editor vorgeschlagen, wenn die Blutung ab „leicht“ ist, an den 3 Vortagen keine Blutung eingetragen ist und der letzte Periodenstart mindestens 10 Tage zurückliegt. Der Vorschlag lässt sich immer von Hand ändern.
+
+Die Statistik (`computeStats`) rechnet mit **allen** Zyklen inklusive Ausreißern (Durchschnitt, Spanne, Tabelle) und bildet die Heatmap „Schmerz pro Zyklustag“ als Durchschnitt der Schmerzstärke je Zyklustag über alle Zyklen.
+
+## Tests starten
+
+* Im Browser: `test.html` öffnen, lokal unter http://localhost:8080/test.html oder live unter https://fwgziemann-lab.github.io/zyklus/test.html. Alle Tests müssen grün sein.
+* Im Terminal (ohne Browser): im Projektordner `node tests.js` ausführen. Beendet sich mit Exit-Code 1, wenn ein Test fehlschlägt.
+
+Abgedeckte Fälle: Datumsrechnung über Monats-, Jahres- und Sommerzeitwechsel, regelmäßiger und unregelmäßiger Zyklus, Lücke in der Periode, nur Schmierblutung, manuelle Starttage, zu wenig Daten (Standardwerte), Ausreißer, Jahreswechsel in der Vorhersage, Schmerz-Heatmap, Event-IDs, Rundreise Eintrag → Google-Termin → Eintrag, diskrete Titel, Erinnerungsminuten, Bereinigung von Import-Daten.
+
+## Lokale Entwicklung
+
+Im Projektordner einen einfachen Server auf Port 8080 starten (diese Adresse ist bei Google als JavaScript-Quelle eingetragen):
+
+```bash
+python3 -m http.server 8080 --bind 127.0.0.1
+```
+
+Dann http://localhost:8080 öffnen. Nach Änderungen: `git add -A && git commit -m "…" && git push`; GitHub Pages baut die Seite in ein bis zwei Minuten neu. Der Service Worker lädt eigene Dateien immer zuerst aus dem Netz, eine neue Version erscheint also nach einem Neuladen mit Verbindung.
+
+## Vorbereitet für Verschlüsselung (Phase 4, optional)
+
+Alle Bodies, die an Google gehen, laufen in `app.js` durch `encodeForRemote()`, alles Geladene durch `decodeFromRemote()`. Eine spätere Verschlüsselung (Web Crypto, AES-GCM, Schlüssel aus einem Passwort per PBKDF2) würde dort ansetzen: `data` und `note` verschlüsselt ablegen, Titel und Beschreibung neutral halten. Der Rest der App bliebe unverändert.
