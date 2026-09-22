@@ -101,7 +101,7 @@ Anschließend legt Claude Code das Repository an und stellt die App auf GitHub P
 Statistik und Druckansicht anschauen, einmal einen JSON Export machen und wieder importieren.
 
 **Phase 4 (optional): Verschlüsselung**
-Wird nur gebaut, wenn du es ausdrücklich sagst (siehe unten).
+In den Einstellungen die Verschlüsselung mit einem Passwort einschalten. In Google Kalender stehen danach nur noch neutrale Titel wie „● Z2“. Tab schließen, App neu öffnen: Sie fragt einmal nach dem Passwort, danach sind alle Einträge wieder sichtbar. Falsches Passwort wird abgelehnt.
 
 
 ## Schritt 5: Auf dem Handy nutzen
@@ -131,7 +131,7 @@ Tipp: Wenn Termine auf dem Sperrbildschirm auftauchen, in den Einstellungen der 
 3. Den Wunsch beschreiben, zum Beispiel „Füge ein Feld für die Temperatur hinzu“
 4. Claude Code testet, speichert und lädt die Änderung hoch. Nach ein bis zwei Minuten ist die neue Version online. Seite neu laden.
 
-**Verschlüsselung nachrüsten:** Schreib „Bau jetzt Phase 4 (Verschlüsselung) aus PROMPT.md“. Bedenke: Danach siehst du die Details nur noch in der App, nicht mehr in der Google Kalender App. Wer das Passwort vergisst, verliert alle Daten.
+**Verschlüsselung einschalten (Phase 4, ist gebaut):** In der App unter Einstellungen → „Verschlüsselung“ den Schalter umlegen, ein Passwort (mindestens 8 Zeichen) zweimal eingeben und die Warnung bestätigen. Die App schreibt danach alle Termine verschlüsselt neu. Bedenke: Danach siehst du die Details nur noch in der App, nicht mehr in der Google Kalender App. Wer das Passwort vergisst, verliert alle Daten. Deshalb vorher einen JSON Export machen.
 
 
 ## Probleme und Lösungen
@@ -170,6 +170,7 @@ In der App mit Google verbinden. Der Status oben muss „synchronisiert“ zeige
 
 * **index.html**: die App (Aufbau und Gestaltung)
 * **core.js**: die Berechnung (Perioden, Zyklen, Vorhersage, Statistik, Abbildung auf Google-Termine)
+* **crypto.js**: die optionale Verschlüsselung (Web Crypto)
 * **app.js**: Speicher, Google-Anbindung und Bedienoberfläche
 * **stats.js**: Statistik und Arztbericht
 * **test.html**, **tests.js**, **test-runner.js**: Tests für die Berechnung
@@ -194,6 +195,7 @@ Live: https://fwgziemann-lab.github.io/zyklus/ · Repository: https://github.com
 | `core.js` | Reine Funktionen ohne DOM/Netz: Datenmodell und Labels, Datumsrechnung, Periodenerkennung, Vorhersage, Statistik, Abbildung auf Google-Termine. Exportiert `window.ZyklusCore` |
 | `app.js` | Zustand, Speicher (localStorage nur als Cache), Google Sync (Anmeldung, REST-Aufrufe, Laden, Warteschlange, Vorhersagen), UI (Übersicht, Kalender, Editor, Einstellungen, Export/Import). Exportiert `window.ZyklusApp` für die Konsole |
 | `stats.js` | Statistik-Ansicht (KPIs, SVG-Liniendiagramm, SVG-Heatmap, Tabelle) und Arztbericht |
+| `crypto.js` | Optionale Verschlüsselung: PBKDF2-Schlüsselableitung, AES-GCM, Schlüssel-Export für die Tab-Sitzung. Exportiert `window.ZyklusCrypto` |
 | `sw.js` | Service Worker: eigene Dateien „erst Netz, sonst Cache“, damit die App offline öffnet. Google-Antworten werden nie gecacht |
 | `tests.js` | Tests für `core.js`; `test.html` zeigt sie im Browser, `test-runner.js` rendert die Liste |
 
@@ -287,7 +289,7 @@ Die Statistik (`computeStats`) rechnet mit **allen** Zyklen inklusive Ausreißer
 * Im Browser: `test.html` öffnen, lokal unter http://localhost:8080/test.html oder live unter https://fwgziemann-lab.github.io/zyklus/test.html. Alle Tests müssen grün sein.
 * Im Terminal (ohne Browser): im Projektordner `node tests.js` ausführen. Beendet sich mit Exit-Code 1, wenn ein Test fehlschlägt.
 
-Abgedeckte Fälle: Datumsrechnung über Monats-, Jahres- und Sommerzeitwechsel, regelmäßiger und unregelmäßiger Zyklus, Lücke in der Periode, nur Schmierblutung, manuelle Starttage, zu wenig Daten (Standardwerte), Ausreißer, Jahreswechsel in der Vorhersage, Schmerz-Heatmap, Event-IDs, Rundreise Eintrag → Google-Termin → Eintrag, diskrete Titel, Erinnerungsminuten, Bereinigung von Import-Daten.
+Abgedeckte Fälle: Datumsrechnung über Monats-, Jahres- und Sommerzeitwechsel, regelmäßiger und unregelmäßiger Zyklus, Lücke in der Periode, nur Schmierblutung, manuelle Starttage, zu wenig Daten (Standardwerte), Ausreißer, Jahreswechsel in der Vorhersage, Schmerz-Heatmap, Event-IDs, Rundreise Eintrag → Google-Termin → Eintrag, diskrete Titel, Erinnerungsminuten, Bereinigung von Import-Daten, Verschlüsselung (Rundreise, falsches Passwort, Stückelung).
 
 ## Lokale Entwicklung
 
@@ -299,6 +301,14 @@ python3 -m http.server 8080 --bind 127.0.0.1
 
 Dann http://localhost:8080 öffnen. Nach Änderungen: `git add -A && git commit -m "…" && git push`; GitHub Pages baut die Seite in ein bis zwei Minuten neu. Der Service Worker lädt eigene Dateien immer zuerst aus dem Netz, eine neue Version erscheint also nach einem Neuladen mit Verbindung.
 
-## Vorbereitet für Verschlüsselung (Phase 4, optional)
+## Verschlüsselung (Phase 4, optional, in den Einstellungen einschaltbar)
 
-Alle Bodies, die an Google gehen, laufen in `app.js` durch `encodeForRemote()`, alles Geladene durch `decodeFromRemote()`. Eine spätere Verschlüsselung (Web Crypto, AES-GCM, Schlüssel aus einem Passwort per PBKDF2) würde dort ansetzen: `data` und `note` verschlüsselt ablegen, Titel und Beschreibung neutral halten. Der Rest der App bliebe unverändert.
+Alle Bodies, die an Google gehen, laufen in `app.js` durch `encodeForRemote()`, alles Geladene durch `decodeFromRemote()` (Abschnitt 4.8). Ist die Verschlüsselung an:
+
+* **Schlüssel**: PBKDF2-SHA-256 mit 200 000 Runden und 16 Byte zufälligem Salt aus dem Passwort (NFKC-normalisiert), AES-GCM 256 Bit. Jede Nachricht bekommt eine zufällige 12-Byte-IV; Format `base64(IV ‖ Ciphertext ‖ Tag)`. GCM prüft die Integrität, ein falsches Passwort fällt beim Entschlüsseln auf.
+* **In Google**: Titel immer neutral (wie diskreter Modus, erzwungen), Beschreibung leer. In `extendedProperties.private` bleiben `app`, `v`, `type`, `date` lesbar (das Datum verrät der Termin ohnehin), dazu `enc=1` und `salt`. `data` ist der Geheimtext des JSON, die Notiz liegt als Geheimtext in Stücken `n0`…`n9` zu je max. 1000 Zeichen (Google-Limit 1024 pro Property). Vorhersage- und Fruchtbarkeits-Termine tragen nur den neutralen Titel.
+* **Passwort**: wird nirgends gespeichert. Der abgeleitete Schlüssel liegt im Arbeitsspeicher und, wie das Token, nur für die Tab-Sitzung in `sessionStorage` (`zyklus.key`); bei „Nichts lokal speichern“ gar nicht. Lokal gespeichert werden nur `encSalt` und `encCheck` (ein verschlüsselter Prüftext, um ein eingegebenes Passwort zu verifizieren). Auf einem neuen Gerät liest die App Salt und einen Beispiel-Geheimtext aus den Google-Terminen und prüft das Passwort damit.
+* **Einschalten**: Passwort zweimal eingeben, Warnung bestätigen → Schlüssel ableiten, alle Tageseinträge in die Warteschlange, Vorhersagen neu → alles wird verschlüsselt hochgeladen. **Ausschalten** (nur entsperrt möglich): alles wieder im Klartext hochladen, Salt und Prüftext löschen.
+* **Schutz des Caches**: Findet `loadRemote` verschlüsselte Termine, die nicht entschlüsselt werden können, bricht die Synchronisierung ab, ohne den lokalen Cache zu überschreiben, und öffnet die Passwortabfrage. Ohne Schlüssel wird nichts hochgeladen (`NeedKeyError`), Änderungen bleiben in der Warteschlange.
+* **Lokaler Cache und JSON-Export** bleiben Klartext: Der Cache liegt nur auf dem eigenen Gerät (bei fremden Geräten „Nichts lokal speichern“ nutzen), der Export ist das Backup für den Fall eines vergessenen Passworts.
+* **Tests**: Rundreise mit Umlauten und Emoji, zufällige IV, falsches Passwort und falsches Salt werden erkannt, Schlüssel-Export/Import, Stückelung langer Notizen (in `tests.js`, asynchron).

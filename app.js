@@ -13,9 +13,8 @@
  *   - Google Kalender ist die Quelle der Wahrheit, localStorage nur Cache.
  *   - Nutzerdaten werden ausschließlich per textContent gerendert, nie als HTML.
  *   - Das Access Token liegt nur im Arbeitsspeicher.
- *   - Vorbereitet für eine spätere Verschlüsselung: alle Google-Bodies entstehen
- *     in encodeForRemote()/decodeFromRemote(); dort könnte später ver- und
- *     entschlüsselt werden, ohne den Rest zu ändern.
+ *   - Optionale Verschlüsselung (Phase 4): alle Google-Bodies laufen durch
+ *     encodeForRemote()/decodeFromRemote() (Abschnitt 4.8, crypto.js).
  */
 (function () {
   'use strict';
@@ -25,7 +24,7 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.3.1';
+  const APP_VERSION = '0.4.0';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';
@@ -47,7 +46,10 @@
     writeFertile: false,
     reminder: false,
     reminderTime: '20:00',
-    connectedBefore: false
+    connectedBefore: false,
+    encryption: false,     // Phase 4: Ende-zu-Ende-Verschlüsselung
+    encSalt: '',           // Salt der Schlüsselableitung (base64), auch in jedem Termin
+    encCheck: ''           // verschlüsselter Prüftext zum Verifizieren des Passworts
   };
 
   /* ================================================================== */
@@ -77,7 +79,7 @@
   }
   function clearLocal() {
     try { Object.keys(KEYS).forEach(function (k) { localStorage.removeItem(KEYS[k]); }); } catch (e) { /* egal */ }
-    try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* egal */ }
+    try { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(KEY_KEY); } catch (e) { /* egal */ }
   }
 
   // Das Access Token wird nur für die Lebensdauer des Tabs gemerkt (sessionStorage),
@@ -109,6 +111,7 @@
     pred: null,           // Ergebnis von C.predict
     editing: null,        // { entry, original, touchedStart }
     auth: { token: null, expiresAt: 0, client: null, pending: null, scope: '' },
+    crypto: { key: null, remoteSalt: '', remoteSample: '' }, // Schlüssel nur im Arbeitsspeicher
     syncing: false,
     status: { kind: '', text: '' }
   };
@@ -209,6 +212,7 @@
   function disconnect() {
     const t = state.auth.token;
     state.auth.token = null; state.auth.expiresAt = 0;
+    state.crypto.key = null;
     saveToken();
     if (t && gisReady()) { try { google.accounts.oauth2.revoke(t, function () {}); } catch (e) { /* egal */ } }
     state.settings.connectedBefore = false;
@@ -315,16 +319,129 @@
 
   /* ---- 4.4 Laden ---- */
 
-  /** Hier könnte später entschlüsselt werden. */
-  function decodeFromRemote(ev) { return C.parseEvent(ev); }
-  /** Hier könnte später verschlüsselt werden. */
-  function encodeForRemote(body) { return body; }
+  /* ---- 4.8 Verschlüsselung (optional, Phase 4) ---- */
+
+  const KEY_KEY = 'zyklus.key';   // abgeleiteter Schlüssel nur für die Tab-Sitzung, nie das Passwort
+  const X = window.ZyklusCrypto;
+  const PROP_MAX = 1000;          // Google: max. 1024 Zeichen pro Property
+
+  function NeedKeyError() { this.name = 'NeedKeyError'; this.message = 'Passwort nötig'; }
+  NeedKeyError.prototype = Object.create(Error.prototype);
+
+  function hasKey() { return !!state.crypto.key; }
+  function encryptionOn() { return !!state.settings.encryption; }
+
+  async function loadKey() {
+    if (noLocal()) return;
+    try {
+      const raw = sessionStorage.getItem(KEY_KEY);
+      if (raw) state.crypto.key = await X.importKey(raw);
+    } catch (e) { state.crypto.key = null; }
+  }
+  async function saveKey() {
+    try {
+      if (noLocal() || !state.crypto.key) sessionStorage.removeItem(KEY_KEY);
+      else sessionStorage.setItem(KEY_KEY, await X.exportKey(state.crypto.key));
+    } catch (e) { /* egal */ }
+  }
+
+  /**
+   * Verschlüsselt einen Google-Body, wenn die Verschlüsselung an ist:
+   * Titel ist dann immer neutral, Beschreibung leer, `data` und `note` liegen
+   * als AES-GCM-Geheimtext in den extendedProperties (Notiz in Stücken n0..n9).
+   * Ohne Schlüssel wird nichts hochgeladen (NeedKeyError).
+   */
+  async function encodeForRemote(body) {
+    if (!encryptionOn()) return body;
+    if (!hasKey()) throw new NeedKeyError();
+    const priv = body.extendedProperties.private;
+    const out = Object.assign({}, body, { description: '' });
+    const p = { app: priv.app, v: priv.v, type: priv.type, date: priv.date, enc: '1', salt: state.settings.encSalt };
+    if (priv.type === 'day') {
+      p.data = await X.encrypt(state.crypto.key, priv.data || '{}');
+      if (priv.note) {
+        const chunks = X.chunk(await X.encrypt(state.crypto.key, priv.note), PROP_MAX);
+        chunks.forEach(function (c, i) { p['n' + i] = c; });
+      }
+    }
+    out.extendedProperties = { private: p };
+    return out;
+  }
+
+  /**
+   * Liest einen Google-Termin. Verschlüsselte Termine ohne passenden Schlüssel
+   * kommen als { locked: true } zurück, damit die Synchronisierung den lokalen
+   * Cache nicht überschreibt.
+   */
+  async function decodeFromRemote(ev) {
+    const priv = ev && ev.extendedProperties && ev.extendedProperties.private;
+    if (!priv || priv.app !== C.APP_ID) return null;
+    if (priv.enc !== '1') return C.parseEvent(ev);
+    if (!state.crypto.remoteSalt && priv.salt) state.crypto.remoteSalt = priv.salt;
+    if (!state.crypto.remoteSample && priv.data) state.crypto.remoteSample = priv.data;
+    if (priv.type !== 'day') return C.parseEvent(ev);
+    if (!hasKey()) return { locked: true, type: 'day', date: priv.date, id: ev.id };
+    try {
+      const plain = { app: priv.app, v: priv.v, type: priv.type, date: priv.date };
+      plain.data = await X.decrypt(state.crypto.key, priv.data || '');
+      let note = '';
+      for (let i = 0; i < 10 && priv['n' + i]; i++) note += priv['n' + i];
+      plain.note = note ? await X.decrypt(state.crypto.key, note) : '';
+      return C.parseEvent({ id: ev.id, status: ev.status, extendedProperties: { private: plain } });
+    } catch (e) {
+      return { locked: true, type: 'day', date: priv.date, id: ev.id };
+    }
+  }
+
+  /** Schaltet die Verschlüsselung ein: Schlüssel ableiten, alles neu hochladen. */
+  async function enableEncryption(password) {
+    const salt = X.randomSalt();
+    const key = await X.deriveKey(password, salt);
+    state.crypto.key = key;
+    state.settings.encSalt = salt;
+    state.settings.encCheck = await X.encrypt(key, 'zyklus-ok');
+    state.settings.encryption = true;
+    await saveKey();
+    Object.keys(state.entries).forEach(queueDay);
+    state.remote.predSig = '';
+    persist();
+    render();
+    pushChanges();
+  }
+
+  /** Schaltet die Verschlüsselung aus: alles wieder im Klartext hochladen. */
+  function disableEncryption() {
+    state.settings.encryption = false;
+    state.settings.encSalt = '';
+    state.settings.encCheck = '';
+    state.crypto.key = null;
+    saveKey();
+    Object.keys(state.entries).forEach(queueDay);
+    state.remote.predSig = '';
+    persist();
+    render();
+    pushChanges();
+  }
+
+  /** Prüft ein Passwort gegen den lokalen Prüftext oder einen Termin aus Google. */
+  async function unlockWith(password) {
+    const salt = state.settings.encSalt || state.crypto.remoteSalt;
+    if (!salt) throw new Error('Kein Salt bekannt. Bitte zuerst mit Google verbinden.');
+    const key = await X.deriveKey(password, salt);
+    const sample = state.settings.encSalt ? state.settings.encCheck : state.crypto.remoteSample;
+    if (sample) await X.decrypt(key, sample); // wirft bei falschem Passwort
+    state.crypto.key = key;
+    if (!state.settings.encSalt) { state.settings.encSalt = salt; state.settings.encryption = true; }
+    if (!state.settings.encCheck) state.settings.encCheck = await X.encrypt(key, 'zyklus-ok');
+    await saveKey();
+    persist();
+  }
 
   async function loadRemote() {
     const calId = state.settings.calendarId;
     const t = today();
     const entries = {}, remote = { days: {}, predictions: {}, fertile: {}, predSig: state.remote.predSig };
-    let pageToken = null;
+    let pageToken = null, locked = 0;
     do {
       const res = await api('GET', 'calendars/' + encodeURIComponent(calId) + '/events', undefined, {
         privateExtendedProperty: 'app=' + C.APP_ID,
@@ -336,10 +453,11 @@
         fields: 'nextPageToken,items(id,status,start,end,extendedProperties)',
         pageToken: pageToken
       });
-      (res.items || []).forEach(function (ev) {
-        const parsed = decodeFromRemote(ev);
-        if (!parsed) return;
-        if (parsed.type === 'day') {
+      for (const ev of (res.items || [])) {
+        const parsed = await decodeFromRemote(ev);
+        if (!parsed) continue;
+        if (parsed.locked) { locked++; remote.days[parsed.date] = ev.id; }
+        else if (parsed.type === 'day') {
           if (!C.isEntryEmpty(parsed.entry)) entries[parsed.entry.date] = parsed.entry;
           remote.days[parsed.entry.date] = ev.id;
         } else if (parsed.type === 'prediction') {
@@ -347,10 +465,10 @@
         } else if (parsed.type === 'fertile') {
           remote.fertile[parsed.date] = ev.id;
         }
-      });
+      }
       pageToken = res.nextPageToken;
     } while (pageToken);
-    return { entries: entries, remote: remote };
+    return { entries: entries, remote: remote, locked: locked };
   }
 
   /* ---- 4.5 Warteschlange (Änderungen, die noch nach Google müssen) ---- */
@@ -371,7 +489,7 @@
   async function pushDay(entry) {
     const calId = state.settings.calendarId;
     const id = C.eventId('day', entry.date);
-    const body = encodeForRemote(C.buildDayEvent(entry, { periods: state.pred.periods, discreet: state.settings.discreet }));
+    const body = await encodeForRemote(C.buildDayEvent(entry, { periods: state.pred.periods, discreet: state.settings.discreet || encryptionOn() }));
     await upsertEvent(calId, id, body);
     state.remote.days[entry.date] = id;
   }
@@ -417,7 +535,7 @@
 
   async function syncPredictions() {
     const s = state.settings, calId = s.calendarId, p = state.pred;
-    const ctx = { discreet: s.discreet, reminderTime: s.reminder ? s.reminderTime : null };
+    const ctx = { discreet: s.discreet || encryptionOn(), reminderTime: s.reminder ? s.reminderTime : null };
     const wantPred = {}, wantFert = {};
     if (p && p.predictions.length) {
       p.predictions.forEach(function (pr, i) {
@@ -436,12 +554,12 @@
     // Neue schreiben
     for (const d of Object.keys(wantPred)) {
       const id = C.eventId('prediction', d);
-      await upsertEvent(calId, id, encodeForRemote(wantPred[d]));
+      await upsertEvent(calId, id, await encodeForRemote(wantPred[d]));
       state.remote.predictions[d] = id;
     }
     for (const d of Object.keys(wantFert)) {
       const id = C.eventId('fertile', d);
-      await upsertEvent(calId, id, encodeForRemote(wantFert[d]));
+      await upsertEvent(calId, id, await encodeForRemote(wantFert[d]));
       state.remote.fertile[d] = id;
     }
     state.remote.predSig = JSON.stringify([wantPred, wantFert, Object.keys(state.remote.predictions).sort(), Object.keys(state.remote.fertile).sort()]);
@@ -458,6 +576,15 @@
     try {
       await ensureCalendar();
       const remote = await loadRemote();
+      if (remote.locked) {
+        // Verschlüsselte Termine ohne Schlüssel: lokalen Cache nicht anfassen, Passwort abfragen
+        if (!state.settings.encryption) { state.settings.encryption = true; state.settings.encSalt = ''; persist(); }
+        state.syncing = false;
+        setStatus('warn', 'Passwort nötig');
+        render();
+        openPwDialog('unlock');
+        return;
+      }
       // Lokale, noch nicht hochgeladene Änderungen behalten
       state.queue.forEach(function (op) {
         if (op.op === 'upsert' && op.entry) remote.entries[op.date] = C.normalizeEntry(op.entry);
@@ -502,7 +629,8 @@
 
   function handleSyncError(e) {
     console.warn('Sync', e);
-    if (e instanceof AuthError) setStatus('warn', 'Verbindung erneuern');
+    if (e instanceof NeedKeyError) { setStatus('warn', 'Passwort nötig'); openPwDialog('unlock'); }
+    else if (e instanceof AuthError) setStatus('warn', 'Verbindung erneuern');
     else if (!navigator.onLine) setStatus('warn', 'offline');
     else setStatus('err', 'Fehler: ' + (e.message || e));
   }
@@ -580,6 +708,8 @@
     let text = state.status.text || 'nicht verbunden';
     if (state.queue.length && state.status.kind !== 'busy') text += ' · ' + state.queue.length + ' offen';
     chip.textContent = text;
+    const unlock = $('btn-unlock-top');
+    unlock.hidden = !(encryptionOn() && !hasKey());
     const top = $('btn-connect-top');
     const needs = !hasToken();
     top.hidden = !needs;
@@ -850,6 +980,13 @@
     $('set-reminder-time-row').hidden = !s.reminder;
     $('set-discreet').checked = s.discreet;
     $('set-nolocal').checked = noLocal();
+    $('set-encryption').checked = encryptionOn();
+    $('set-encryption').disabled = !X.available();
+    $('enc-status').textContent = !X.available() ? 'Web Crypto ist in diesem Browser nicht verfügbar.' :
+      !encryptionOn() ? 'Aus. In Google stehen lesbare Titel und Beschreibungen (bzw. neutrale Titel im diskreten Modus).' :
+      hasKey() ? 'An und entsperrt. In Google stehen nur neutrale Titel, die Details sind verschlüsselt.' :
+      'An, aber gesperrt: Passwort eingeben, um zu synchronisieren.';
+    $('btn-unlock').hidden = !(encryptionOn() && !hasKey());
     $('btn-disconnect').disabled = !hasToken() && !s.connectedBefore;
     $('app-version').textContent = 'Version ' + APP_VERSION;
   }
@@ -872,9 +1009,19 @@
       state.remote.predSig = '';
       pushChanges();
     });
+    $('set-encryption').addEventListener('change', function () {
+      const on = this.checked;
+      this.checked = !on; // wird erst nach erfolgreicher Passworteingabe umgeschaltet
+      if (on) openPwDialog('setup');
+      else if (!hasKey()) openPwDialog('unlock');
+      else if (confirm('Verschlüsselung ausschalten? Alle Termine werden wieder im Klartext nach Google geschrieben.')) disableEncryption();
+    });
+    $('btn-unlock').addEventListener('click', function () { openPwDialog('unlock'); });
+    $('btn-unlock-top').addEventListener('click', function () { openPwDialog('unlock'); });
+    bindPwDialog();
     $('set-nolocal').addEventListener('change', function () {
       setNoLocal(this.checked);
-      if (!this.checked) { persist(); saveToken(); }
+      if (!this.checked) { persist(); saveToken(); saveKey(); }
       toast(this.checked ? 'Es wird nichts mehr lokal gespeichert' : 'Lokaler Cache wieder aktiv');
     });
 
@@ -900,6 +1047,53 @@
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', importJSON);
     $('btn-delete-all').addEventListener('click', deleteAll);
+  }
+
+  /* ---- 5.6b Passwort-Dialog (Verschlüsselung) ---- */
+
+  let pwMode = 'unlock';
+  function openPwDialog(mode) {
+    const dlg = $('pw-dialog');
+    if (dlg.open) return;
+    pwMode = mode;
+    const setup = mode === 'setup';
+    $('pw-title').textContent = setup ? 'Verschlüsselung einschalten' : 'Passwort eingeben';
+    $('pw-intro').textContent = setup
+      ? 'Alle Daten werden ab jetzt mit diesem Passwort verschlüsselt, bevor sie an Google gehen. In Google Kalender siehst du dann nur noch neutrale Titel, die Details nur in dieser App.'
+      : 'Die Daten in Google sind verschlüsselt. Gib dein Passwort ein, um sie zu lesen und zu synchronisieren.';
+    $('pw-setup-only').hidden = !setup;
+    $('pw-pass').value = ''; $('pw-pass2').value = ''; $('pw-ack').checked = false;
+    $('pw-error').textContent = '';
+    $('pw-submit').textContent = setup ? 'Einschalten' : 'Entsperren';
+    $('pw-submit').disabled = false;
+    dlg.showModal();
+    setTimeout(function () { $('pw-pass').focus(); }, 50);
+  }
+
+  function bindPwDialog() {
+    $('pw-close').addEventListener('click', function () { $('pw-dialog').close(); });
+    $('pw-form').addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      const pass = $('pw-pass').value;
+      const err = $('pw-error');
+      err.textContent = '';
+      if (pwMode === 'setup') {
+        if (pass.length < 8) { err.textContent = 'Mindestens 8 Zeichen.'; return; }
+        if (pass !== $('pw-pass2').value) { err.textContent = 'Die Passwörter stimmen nicht überein.'; return; }
+        if (!$('pw-ack').checked) { err.textContent = 'Bitte bestätige, dass bei vergessenem Passwort alle Daten verloren sind.'; return; }
+      } else if (!pass) { err.textContent = 'Bitte Passwort eingeben.'; return; }
+      $('pw-submit').disabled = true;
+      $('pw-submit').textContent = 'Schlüssel wird berechnet …';
+      try {
+        if (pwMode === 'setup') { await enableEncryption(pass); toast('Verschlüsselung eingeschaltet'); }
+        else { await unlockWith(pass); toast('Entsperrt'); render(); if (hasToken()) fullSync(); else pushChanges(); }
+        $('pw-dialog').close();
+      } catch (e) {
+        err.textContent = pwMode === 'setup' ? ('Fehler: ' + e.message) : 'Falsches Passwort.';
+        $('pw-submit').disabled = false;
+        $('pw-submit').textContent = pwMode === 'setup' ? 'Einschalten' : 'Entsperren';
+      }
+    });
   }
 
   /* ---- 5.7 Export / Import / Löschen ---- */
@@ -988,7 +1182,8 @@
   /* 6. Start                                                            */
   /* ================================================================== */
 
-  function init() {
+  async function init() {
+    await loadKey();
     recompute();
     initEditor();
     bindSettings();
@@ -1024,7 +1219,7 @@
   }
 
   // Für die Konsole / Fehlersuche
-  window.ZyklusApp = { state: state, fullSync: fullSync, pushChanges: pushChanges, version: APP_VERSION };
+  window.ZyklusApp = { state: state, fullSync: fullSync, pushChanges: pushChanges, encodeForRemote: encodeForRemote, decodeFromRemote: decodeFromRemote, version: APP_VERSION };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

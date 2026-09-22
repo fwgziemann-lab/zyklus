@@ -5,6 +5,7 @@
 (function (root) {
   'use strict';
   const C = root.ZyklusCore || (typeof require === 'function' ? (require('./core.js'), globalThis.ZyklusCore) : null);
+  const X = root.ZyklusCrypto || (typeof require === 'function' ? (require('./crypto.js'), globalThis.ZyklusCrypto) : null);
   const tests = [];
   function test(name, fn) { tests.push({ name: name, fn: fn }); }
 
@@ -371,14 +372,49 @@
     assert(!C.isEntryEmpty(e));
   });
 
+  /* ---------------- Verschlüsselung (Phase 4, asynchron) ---------------- */
+
+  test('Verschlüsselung: Rundreise mit Umlauten, falsches Passwort wird erkannt', async function () {
+    assert(X && X.available(), 'Web Crypto verfügbar');
+    const salt = X.randomSalt();
+    assert(salt.length >= 20, 'Salt base64');
+    const key = await X.deriveKey('geheim-Passwort', salt);
+    const ct = await X.encrypt(key, 'Notiz äöü 🩸 <b>x</b>');
+    assert(ct !== 'Notiz äöü 🩸 <b>x</b>' && ct.indexOf('Notiz') < 0, 'kein Klartext im Geheimtext');
+    eq(await X.decrypt(key, ct), 'Notiz äöü 🩸 <b>x</b>');
+    const ct2 = await X.encrypt(key, 'gleicher Text');
+    assert(ct2 !== await X.encrypt(key, 'gleicher Text'), 'zufällige IV: gleicher Text ergibt anderen Geheimtext');
+    const wrong = await X.deriveKey('geheim-passwort', salt); // nur Groß/Klein anders
+    let failed = false;
+    try { await X.decrypt(wrong, ct); } catch (e) { failed = true; }
+    assert(failed, 'falsches Passwort muss fehlschlagen');
+    const other = await X.deriveKey('geheim-Passwort', X.randomSalt());
+    failed = false;
+    try { await X.decrypt(other, ct); } catch (e) { failed = true; }
+    assert(failed, 'anderes Salt muss fehlschlagen');
+  });
+
+  test('Verschlüsselung: Schlüssel export/import für die Tab-Sitzung, Stückelung langer Notizen', async function () {
+    const key = await X.deriveKey('pw12345678', X.randomSalt());
+    const raw = await X.exportKey(key);
+    const key2 = await X.importKey(raw);
+    eq(await X.decrypt(key2, await X.encrypt(key, 'hallo')), 'hallo');
+    const long = new Array(1001).join('ä'); // 1000 Umlaute = 2000 Bytes
+    const ct = await X.encrypt(key, long);
+    const chunks = X.chunk(ct, 1000);
+    assert(chunks.length >= 2 && chunks.every(function (c) { return c.length <= 1000; }), 'Stücke ≤ 1000 Zeichen');
+    eq(await X.decrypt(key, chunks.join('')), long);
+  });
+
   /* ---------------- Runner ---------------- */
 
-  function run(report) {
+  /** Führt alle Tests nacheinander aus (synchron oder asynchron) und meldet jedes Ergebnis. */
+  async function run(report) {
     let passed = 0, failed = 0;
-    tests.forEach(function (t) {
-      try { t.fn(); passed++; report(true, t.name); }
+    for (const t of tests) {
+      try { await t.fn(); passed++; report(true, t.name); }
       catch (err) { failed++; report(false, t.name, err.message); }
-    });
+    }
     return { passed: passed, failed: failed, total: tests.length };
   }
 
@@ -386,10 +422,11 @@
 
   // Direkt in Node ausführen: node tests.js
   if (typeof module !== 'undefined' && typeof require === 'function' && require.main === module) {
-    const res = run(function (ok, name, msg) {
+    run(function (ok, name, msg) {
       console.log((ok ? '  ok   ' : '  FAIL ') + name + (msg ? '\n         ' + msg : ''));
+    }).then(function (res) {
+      console.log('\n' + res.passed + '/' + res.total + ' Tests bestanden' + (res.failed ? ', ' + res.failed + ' fehlgeschlagen' : ''));
+      process.exit(res.failed ? 1 : 0);
     });
-    console.log('\n' + res.passed + '/' + res.total + ' Tests bestanden' + (res.failed ? ', ' + res.failed + ' fehlgeschlagen' : ''));
-    process.exit(res.failed ? 1 : 0);
   }
 })(typeof window !== 'undefined' ? window : globalThis);

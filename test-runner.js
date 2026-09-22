@@ -3,7 +3,7 @@
   'use strict';
   const list = document.getElementById('results');
   const summary = document.getElementById('summary');
-  const res = window.ZyklusTests.run(function (ok, name, msg) {
+  window.ZyklusTests.run(function (ok, name, msg) {
     const li = document.createElement('li');
     li.className = ok ? 'ok' : 'fail';
     li.textContent = name;
@@ -14,9 +14,10 @@
       li.appendChild(m);
     }
     list.appendChild(li);
+  }).then(function (res) {
+    summary.className = res.failed ? 'fail' : 'ok';
+    summary.textContent = res.failed
+      ? res.failed + ' von ' + res.total + ' Tests fehlgeschlagen'
+      : 'Alle ' + res.total + ' Tests bestanden';
   });
-  summary.className = res.failed ? 'fail' : 'ok';
-  summary.textContent = res.failed
-    ? res.failed + ' von ' + res.total + ' Tests fehlgeschlagen'
-    : 'Alle ' + res.total + ' Tests bestanden';
 })();
