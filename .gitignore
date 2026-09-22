@@ -1,0 +1,22 @@
+# Niemals persönliche Daten oder Exporte ins Repository
+*.json
+!manifest.webmanifest
+*.csv
+*.ics
+*.log
+exports/
+backup*/
+
+# Betriebssystem und Editoren
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Lokale Notizen mit Geheimnissen
+*.env
+.env*
+secrets*
+
+# Lokale Claude Code Konfiguration
+.claude/
