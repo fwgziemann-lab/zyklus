@@ -231,7 +231,7 @@
       const dt = el('table');
       dt.appendChild(el('thead', null, [el('tr', null, [
         el('th', { text: 'Datum' }), el('th', { class: 'num', text: 'ZT' }), el('th', { text: 'Blutung' }), el('th', { class: 'num', text: 'Schmerz' }),
-        el('th', { text: 'Ort' }), el('th', { text: 'Symptome' }), el('th', { text: 'Stimmung' }), el('th', { text: 'Medikament' }), el('th', { text: 'Produkt' }), el('th', { text: 'Notiz' })
+        el('th', { text: 'Ort' }), el('th', { text: 'Symptome' }), el('th', { text: 'Stimmung' }), el('th', { text: 'Medikament' }), el('th', { text: 'Produkt' }), el('th', { text: 'GV' }), el('th', { text: 'Notiz' })
       ])]));
       const dtb = el('tbody');
       days.forEach(function (e) {
@@ -245,13 +245,14 @@
           el('td', { text: e.mood ? C.MOOD_LABEL[e.mood] : '–' }),
           el('td', { text: e.medication ? ('ja' + (e.medicationName ? ' ' + e.medicationName : '') + (e.medicationCount ? ' ×' + e.medicationCount : '')) : '–' }),
           el('td', { text: e.product ? C.PRODUCT_LABEL[e.product] + (e.productChanges ? ' (' + e.productChanges + '×)' : '') : '–' }),
+          el('td', { text: e.sex ? ('ja' + (e.sexProtection ? ', ' + C.SEX_PROTECTION_LABEL[e.sexProtection] : '')) : '–' }),
           el('td', { text: dash(e.note), style: 'white-space:normal;max-width:16rem' })
         ]));
       });
       dt.appendChild(dtb);
       root.appendChild(el('div', { class: 'table-wrap' }, [dt]));
     });
-    root.appendChild(el('p', { class: 'small muted', style: 'margin-top:1rem', text: '● = als erster Tag der Periode markiert · ZT = Zyklustag · Schmerz auf einer Skala von 0 bis 10 · Erstellt mit der Zyklus App; Vorhersagen sind Schätzungen und nicht zur Verhütung geeignet.' }));
+    root.appendChild(el('p', { class: 'small muted', style: 'margin-top:1rem', text: '● = als erster Tag der Periode markiert · ZT = Zyklustag · GV = Geschlechtsverkehr · Schmerz auf einer Skala von 0 bis 10 · Erstellt mit der Zyklus App; Vorhersagen sind Schätzungen und nicht zur Verhütung geeignet.' }));
   }
 
   window.ZyklusStats = { render: render, renderReport: renderReport };

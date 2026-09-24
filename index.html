@@ -133,6 +133,7 @@
 
     /* ---------- Layout ---------- */
     main { max-width: 760px; margin: 0 auto; padding: 1rem; }
+    html, body { overflow-x: hidden; max-width: 100%; }
     section.view { display: none; }
     section.view.active { display: block; }
     .card {
@@ -175,15 +176,19 @@
     /* ---------- Kalender ---------- */
     .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .cal-head h2 { font-size: 1.1rem; margin: 0; text-transform: capitalize; }
-    .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
     .cal-weekdays { color: var(--muted); font-size: .75rem; text-align: center; margin-bottom: 4px; }
     .cal-weekdays span:nth-child(n+6) { color: var(--accent); }
     .cal-grid { touch-action: pan-y; }
     .day {
-      position: relative; aspect-ratio: 1 / 1; min-height: 44px;
+      /* min-width: 0 ist wichtig: sonst erzwingt aspect-ratio zusammen mit einer
+         Mindesthöhe auch eine Mindestbreite und das Raster wird breiter als der
+         Bildschirm. Die Touch-Fläche bleibt über die Polsterung groß genug. */
+      position: relative; aspect-ratio: 1 / 1; min-width: 0; min-height: 0;
       border-radius: 10px; border: 1px solid transparent; background: var(--surface-2);
       padding: 4px; display: flex; flex-direction: column; align-items: flex-start;
       font-size: .9rem; text-align: left; -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
     }
     .day.empty { background: transparent; pointer-events: none; }
     .day.other { opacity: .45; }
@@ -222,6 +227,22 @@
     .legend i.l-ovu { border-radius: 50%; background: var(--green); width: 9px; height: 9px; }
     .legend i.l-start { border-radius: 50%; background: var(--text); width: 7px; height: 7px; }
     .disclaimer { font-size: .82rem; color: var(--muted); margin-top: 1rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 10px; }
+
+    /* Schmale Handys: Polster verkleinern, damit die Tage trotzdem gut treffbar bleiben */
+    @media (max-width: 430px) {
+      main { padding: .6rem; }
+      .card { padding: .75rem; }
+      .cal-weekdays, .cal-grid { gap: 3px; }
+      .day { padding: 3px; font-size: .85rem; }
+      .legend { gap: .4rem .75rem; font-size: .75rem; }
+    }
+
+    /* Sehr schmale Handys (360 px): Polster noch etwas kleiner, damit die
+       Tagesfelder die empfohlenen 44 px Touch-Fläche behalten */
+    @media (max-width: 380px) {
+      main { padding: .4rem; }
+      .card { padding: .6rem; }
+    }
 
     /* ---------- Tabs ---------- */
     nav.tabs {
@@ -291,7 +312,12 @@
     .bleed .drops { display: flex; gap: 1px; height: 22px; align-items: center; }
     .bleed .drops svg { width: 11px; height: 16px; }
     .bleed .drops.outline svg { fill: none; stroke: var(--b4); stroke-width: 1.5; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 0; }
+    .switch, .field > label.switch {
+      /* .field > label setzt display:block; für Schalter muss Flex gewinnen */
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 0;
+    }
+    .field > label.switch { margin-bottom: 0; font-weight: 600; font-size: .9rem; }
+    .switch .small { font-weight: 400; }
     .switch input { width: 46px; height: 28px; appearance: none; -webkit-appearance: none; background: var(--border); border-radius: 999px; position: relative; flex: none; margin: 0; }
     .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
     .switch input:checked { background: var(--accent); }
@@ -424,6 +450,7 @@
           <span><i class="l-fert"></i> Fruchtbares Fenster</span>
           <span><i class="l-ovu"></i> Eisprung (ca.)</span>
           <span>⚡ Schmerzen</span>
+          <span>♥ Geschlechtsverkehr</span>
           <span>✎ Notiz</span>
         </div>
         <div class="disclaimer">
@@ -627,6 +654,11 @@
             <label for="ed-product-changes" style="align-self:center;font-weight:400">Anzahl Wechsel</label>
             <input type="number" id="ed-product-changes" min="0" max="99" inputmode="numeric" placeholder="0">
           </div>
+        </div>
+
+        <div class="field">
+          <label class="switch" style="padding:0"><span>Geschlechtsverkehr<div class="small muted">Steht nie im Termintitel, nur in der Beschreibung.</div></span><input type="checkbox" id="ed-sex"></label>
+          <div class="chips" id="ed-sex-protection" style="margin-top:.5rem" hidden></div>
         </div>
 
         <div class="field">

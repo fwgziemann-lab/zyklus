@@ -328,6 +328,24 @@
     eq(back.entry, e);
   });
 
+  test('Geschlechtsverkehr: Rundreise, nie im Termintitel', function () {
+    const e = C.emptyEntry('2026-09-15');
+    e.sex = true; e.sexProtection = 'protected';
+    const ev = C.buildDayEvent(e, { periods: [], discreet: false });
+    assert(ev.summary.toLowerCase().indexOf('geschlecht') < 0 && ev.summary.indexOf('♥') < 0, 'Titel bleibt neutral: ' + ev.summary);
+    assert(ev.description.indexOf('Geschlechtsverkehr: ja, geschützt') >= 0, 'steht in der Beschreibung');
+    const back = C.parseEvent({ id: 'x', extendedProperties: ev.extendedProperties });
+    eq(back.entry.sex, true);
+    eq(back.entry.sexProtection, 'protected');
+    // Ein Tag mit nur diesem Eintrag ist nicht leer und beeinflusst keine Periode
+    assert(!C.isEntryEmpty(e));
+    eq(C.detectPeriods({ '2026-09-15': e }).length, 0);
+    // Ohne Angabe zum Schutz
+    const e2 = C.normalizeEntry({ date: '2026-09-16', sex: true, sexProtection: 'unsinn' });
+    eq(e2.sexProtection, null);
+    assert(C.buildDayEvent(e2, { periods: [], discreet: true }).summary.indexOf('♥') < 0);
+  });
+
   test('Diskreter Modus: neutrale Titel ohne Gesundheitsbegriffe', function () {
     const data = entries(concat(period('2026-09-01', 5)));
     const periods = C.detectPeriods(data);

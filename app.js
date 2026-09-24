@@ -24,7 +24,7 @@
   /* 1. Konfiguration                                                    */
   /* ================================================================== */
 
-  const APP_VERSION = '0.5.0';
+  const APP_VERSION = '0.6.0';
   // Die Client ID ist öffentlich unkritisch. Sie steht im <meta name="google-client-id">
   // in index.html und kann alternativ in den Einstellungen eingetragen werden.
   const META_CLIENT_ID = (document.querySelector('meta[name="google-client-id"]') || {}).content || '';
@@ -847,6 +847,7 @@
       const marks = [];
       if (e && e.pain > 0) marks.push('⚡');
       if (e && (e.symptoms.length || e.mood)) marks.push('✦');
+      if (e && e.sex) marks.push('♥');
       if (e && e.note) marks.push('✎');
       const cell = el('button', {
         type: 'button', class: cls.join(' '), 'data-date': date,
@@ -887,6 +888,7 @@
     buildChips($('ed-symptoms'), C.SYMPTOMS, C.SYMPTOM_LABEL, function (k) { toggleIn(state.editing.entry.symptoms, k); setChips($('ed-symptoms'), state.editing.entry.symptoms); });
     buildChips($('ed-mood'), C.MOODS, C.MOOD_LABEL, function (k) { const e = state.editing.entry; e.mood = e.mood === k ? null : k; setChips($('ed-mood'), e.mood ? [e.mood] : []); });
     buildChips($('ed-product'), C.PRODUCTS, C.PRODUCT_LABEL, function (k) { const e = state.editing.entry; e.product = e.product === k ? null : k; setChips($('ed-product'), e.product ? [e.product] : []); });
+    buildChips($('ed-sex-protection'), C.SEX_PROTECTION, C.SEX_PROTECTION_LABEL, function (k) { const e = state.editing.entry; e.sexProtection = e.sexProtection === k ? null : k; setChips($('ed-sex-protection'), e.sexProtection ? [e.sexProtection] : []); });
 
     $('ed-bleeding').querySelectorAll('button').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -908,6 +910,13 @@
     $('ed-med-name').addEventListener('input', function () { state.editing.entry.medicationName = this.value.slice(0, 80); });
     $('ed-med-count').addEventListener('input', function () { state.editing.entry.medicationCount = Math.max(0, Math.min(99, parseInt(this.value, 10) || 0)); });
     $('ed-product-changes').addEventListener('input', function () { state.editing.entry.productChanges = Math.max(0, Math.min(99, parseInt(this.value, 10) || 0)); });
+    $('ed-sex').addEventListener('change', function () {
+      const e = state.editing.entry;
+      e.sex = this.checked;
+      if (!e.sex) e.sexProtection = null;
+      $('ed-sex-protection').hidden = !e.sex;
+      setChips($('ed-sex-protection'), e.sexProtection ? [e.sexProtection] : []);
+    });
     $('ed-note').addEventListener('input', function () { state.editing.entry.note = this.value.slice(0, C.NOTE_MAX); });
 
     $('editor-close').addEventListener('click', function () { $('editor').close(); });
@@ -951,6 +960,9 @@
     $('ed-med').checked = e.medication; $('ed-med-details').hidden = !e.medication;
     $('ed-med-name').value = e.medicationName; $('ed-med-count').value = e.medicationCount || '';
     $('ed-product-changes').value = e.productChanges || '';
+    $('ed-sex').checked = e.sex;
+    $('ed-sex-protection').hidden = !e.sex;
+    setChips($('ed-sex-protection'), e.sexProtection ? [e.sexProtection] : []);
     $('ed-note').value = e.note;
   }
 
@@ -1208,6 +1220,7 @@
       if (e.pain) parts.push('Schmerz ' + e.pain + '/10');
       if (e.symptoms.length) parts.push(e.symptoms.map(function (x) { return C.SYMPTOM_LABEL[x]; }).join('/'));
       if (e.mood) parts.push('Stimmung ' + C.MOOD_LABEL[e.mood]);
+      if (e.sex) parts.push('GV');
       if (e.note) parts.push('Notiz vorhanden');
       return '- ' + C.formatDE(e.date) + ': ' + parts.join(', ') + (e.updatedAt ? ' (gespeichert ' + e.updatedAt.slice(0, 16).replace('T', ' ') + ')' : '');
     }).join('\n') || '- keine Einträge';

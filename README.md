@@ -241,6 +241,8 @@ Ein Tageseintrag (`core.js`, `emptyEntry`):
   mood: null | "good" | "balanced" | "irritable" | "sad" | "anxious" | "energetic",
   medication: false, medicationName: "", medicationCount: 0,
   product: null | "pad" | "tampon" | "cup" | "underwear", productChanges: 0,
+  sex: false,                  // Geschlechtsverkehr
+  sexProtection: null | "protected" | "unprotected",
   note: "",                    // max. 1000 Zeichen
   updatedAt: "2026-03-05T18:00:00.000Z"
 }
@@ -264,6 +266,8 @@ Drei Termintypen, alle ganztägig (`start.date`, `end.date` exklusiv, also Folge
 | Vorhersage | `ckp` + Startdatum | `Periode erwartet (ca.)`, mehrtägig; bei unregelmäßigem Zyklus über den ganzen Zeitraum | `◌ ca.` | 6 Tangerine |
 | Fruchtbares Fenster | `ckf` + Startdatum | `Fruchtbares Fenster (ca.)` | `◌ +` | 2 Sage |
 
+Geschlechtsverkehr (`sx`, `sxp`) erscheint bewusst **nie im Termintitel**, auch nicht im normalen Modus, damit nichts davon auf dem Sperrbildschirm oder in Kalender-Widgets auftaucht. Er steht nur in der Beschreibung, in den strukturierten Daten und in der App (Herz-Symbol im Kalender, Spalte „GV“ im Arztbericht).
+
 Event-IDs dürfen laut API nur `a–v` und `0–9` enthalten (base32hex), daher die Präfixe ohne `y` oder `z`. Deterministische IDs verhindern Duplikate: Beim Schreiben versucht die App `events.insert` mit der ID; antwortet Google mit 409 (ID existiert, auch wenn der Termin früher gelöscht wurde), folgt `events.update` mit `status: confirmed`, was den Termin überschreibt bzw. wiederbelebt. Löschen toleriert 404 und 410.
 
 Strukturierte Daten liegen in `extendedProperties.private`:
@@ -273,7 +277,7 @@ app   = "zyklus"            Kennung der App
 v     = "1"                 Datenversion
 type  = "day" | "prediction" | "fertile"
 date  = "YYYY-MM-DD"
-data  = JSON (nur Typ day): {"b":"heavy","ps":1,"p":6,"pl":["abdomen"],"s":["cramps"],"m":"irritable","med":1,"medn":"Ibuprofen","medc":2,"pr":"tampon","prc":5,"u":"…"}
+data  = JSON (nur Typ day): {"b":"heavy","ps":1,"p":6,"pl":["abdomen"],"s":["cramps"],"m":"irritable","med":1,"medn":"Ibuprofen","medc":2,"pr":"tampon","prc":5,"sx":1,"sxp":"protected","u":"…"}
 note  = Notiz (nur Typ day, max. 1000 Zeichen)
 ```
 

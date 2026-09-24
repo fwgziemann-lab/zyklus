@@ -57,6 +57,10 @@
     pad: 'Binde', tampon: 'Tampon', cup: 'Menstruationstasse', underwear: 'Periodenunterwäsche'
   };
 
+  // Geschlechtsverkehr: bewusst nur in der Beschreibung, nie im Termintitel
+  const SEX_PROTECTION = ['protected', 'unprotected'];
+  const SEX_PROTECTION_LABEL = { protected: 'geschützt', unprotected: 'ungeschützt' };
+
   const PHASE_LABEL = {
     menstruation: 'Menstruation', follicular: 'Follikelphase',
     ovulation: 'Eisprung', luteal: 'Lutealphase', overdue: 'Periode überfällig',
@@ -80,6 +84,8 @@
       medicationCount: 0,
       product: null,
       productChanges: 0,
+      sex: false,
+      sexProtection: null,
       note: '',
       updatedAt: null
     };
@@ -100,6 +106,8 @@
     e.medicationCount = clampInt(raw.medicationCount, 0, 99);
     e.product = PRODUCTS.indexOf(raw.product) >= 0 ? raw.product : null;
     e.productChanges = clampInt(raw.productChanges, 0, 99);
+    e.sex = !!raw.sex;
+    e.sexProtection = SEX_PROTECTION.indexOf(raw.sexProtection) >= 0 ? raw.sexProtection : null;
     e.note = typeof raw.note === 'string' ? raw.note.slice(0, NOTE_MAX) : '';
     e.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
     return e;
@@ -109,7 +117,7 @@
   function isEntryEmpty(e) {
     return e.bleeding === 'none' && !e.periodStart && e.pain === 0 &&
       e.painLocations.length === 0 && e.symptoms.length === 0 && !e.mood &&
-      !e.medication && !e.product && e.productChanges === 0 && !e.note;
+      !e.medication && !e.product && e.productChanges === 0 && !e.sex && !e.note;
   }
 
   function clampInt(v, min, max) {
@@ -586,6 +594,9 @@
     if (e.product) {
       lines.push('Produkt: ' + PRODUCT_LABEL[e.product] + (e.productChanges ? ', ' + e.productChanges + ' Wechsel' : ''));
     }
+    if (e.sex) {
+      lines.push('Geschlechtsverkehr: ja' + (e.sexProtection ? ', ' + SEX_PROTECTION_LABEL[e.sexProtection] : ''));
+    }
     if (e.note) lines.push('Notiz: ' + e.note);
     lines.push('');
     lines.push('Eingetragen mit der Zyklus App. Bitte hier nicht bearbeiten, Änderungen bitte in der App vornehmen.');
@@ -611,7 +622,8 @@
     const data = {
       b: e.bleeding, ps: e.periodStart ? 1 : 0, p: e.pain, pl: e.painLocations,
       s: e.symptoms, m: e.mood, med: e.medication ? 1 : 0, medn: e.medicationName,
-      medc: e.medicationCount, pr: e.product, prc: e.productChanges, u: e.updatedAt
+      medc: e.medicationCount, pr: e.product, prc: e.productChanges,
+      sx: e.sex ? 1 : 0, sxp: e.sexProtection, u: e.updatedAt
     };
     return {
       summary: entryTitle(e, c),
@@ -705,7 +717,8 @@
       date: p.date,
       bleeding: d.b, periodStart: !!d.ps, pain: d.p, painLocations: d.pl, symptoms: d.s,
       mood: d.m, medication: !!d.med, medicationName: d.medn, medicationCount: d.medc,
-      product: d.pr, productChanges: d.prc, note: p.note, updatedAt: d.u
+      product: d.pr, productChanges: d.prc, sex: !!d.sx, sexProtection: d.sxp,
+      note: p.note, updatedAt: d.u
     });
     return entry ? { type: 'day', entry: entry, id: ev.id } : null;
   }
@@ -721,6 +734,7 @@
     SYMPTOMS: SYMPTOMS, SYMPTOM_LABEL: SYMPTOM_LABEL,
     MOODS: MOODS, MOOD_LABEL: MOOD_LABEL,
     PRODUCTS: PRODUCTS, PRODUCT_LABEL: PRODUCT_LABEL,
+    SEX_PROTECTION: SEX_PROTECTION, SEX_PROTECTION_LABEL: SEX_PROTECTION_LABEL,
     PHASE_LABEL: PHASE_LABEL, MONTHS_DE: MONTHS_DE, WEEKDAYS_DE: WEEKDAYS_DE,
     COLOR: COLOR,
     CYCLE_MIN: CYCLE_MIN, CYCLE_MAX: CYCLE_MAX,
