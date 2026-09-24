@@ -188,6 +188,13 @@ In der App mit Google verbinden. Der Status oben muss „synchronisiert“ zeige
 * Alle Vorhersagen sind Schätzungen und nicht zur Verhütung geeignet
 
 
+## Version 2: dauerhaft angemeldet
+
+Neben dieser App liegt unter `v2/` eine zweite Fassung, die nach einer einmaligen Anmeldung **dauerhaft verbunden** bleibt (kein Anmelden bei jedem Öffnen). Sie nutzt denselben Google Kalender, sodass beide Fassungen dieselben Daten zeigen.
+
+* Version 1 (diese Anleitung): https://fwgziemann-lab.github.io/zyklus/
+* Version 2: https://fwgziemann-lab.github.io/zyklus/v2/ – Einrichtung und Technik stehen in [v2/README.md](v2/README.md)
+
 ## Dateien im Projekt
 
 * **index.html**: die App (Aufbau und Gestaltung)

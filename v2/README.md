@@ -1,0 +1,101 @@
+# Zyklus Version 2 – dauerhaft angemeldet
+
+Diese Version liegt neben der bisherigen App und ändert nichts an ihr:
+
+* **Version 1 (unverändert):** https://fwgziemann-lab.github.io/zyklus/
+* **Version 2 (diese):** https://fwgziemann-lab.github.io/zyklus/v2/
+
+Beide speichern in denselben Google Kalender „Zyklus“. Du kannst also jederzeit zurückwechseln.
+
+## Was ist anders?
+
+Bisher lief die Anmeldung vollständig im Browser. Google gibt reinen Browser‑Apps aber nur Schlüssel mit **einer Stunde** Gültigkeit – deshalb war bei jedem Öffnen ein Tippen nötig.
+
+Version 2 nutzt den Weg, den alle dauerhaft angemeldeten Apps gehen: Eine kleine Serverfunktion verwahrt den **dauerhaften Schlüssel**. Ablauf:
+
+1. **Einmalig:** Du tippst auf „Mit Google verbinden“. Die Seite wechselt zu Google (kein Popup), du bestätigst, und kommst zurück.
+2. Die Serverfunktion tauscht den Einmal‑Code gegen einen dauerhaften Schlüssel und verwahrt ihn. Dein Browser bekommt nur ein zufälliges Geräte‑Geheimnis.
+3. **Ab dann:** Bei jedem Öffnen holt die App still einen frischen Stundenschlüssel. Keine Anmeldung, kein Fenster, kein Tippen.
+
+**Wo liegt was?**
+
+| | Ort |
+|---|---|
+| Deine Zyklusdaten | ausschließlich im Google Kalender (wie bisher) |
+| Dauerhafter Google‑Schlüssel | nur auf dem Server (Supabase, Frankfurt) |
+| Geräte‑Geheimnis | nur in deinem Browser; der Server kennt davon nur den Hash |
+| Geheimer Clientschlüssel | nur als Secret bei Supabase, nie im Repository |
+
+Der Server speichert **keine Gesundheitsdaten**. Er könnte mit dem Dauerschlüssel aber auf den Kalender zugreifen – das ist der Preis für „dauerhaft angemeldet“ und gilt für jede App, die das kann.
+
+## Einrichtung (einmalig, ca. 10 Minuten)
+
+Ohne diese drei Schritte zeigt die App „Server nicht eingerichtet“.
+
+### 1. Google: Weiterleitungs‑Adressen eintragen
+
+Google Cloud Console → **Google Auth Platform → Clients** → Client „Zyklus Web“ öffnen.
+Unter **Autorisierte Weiterleitungs‑URIs** beide eintragen (bisher war das Feld leer):
+
+```
+https://fwgziemann-lab.github.io/zyklus/v2/
+http://localhost:8080/v2/
+```
+
+Die JavaScript‑Quellen bleiben, wie sie sind. Speichern.
+
+### 2. Google: App veröffentlichen
+
+Google Auth Platform → **Zielgruppe** → Veröffentlichungsstatus auf **„In Produktion“** stellen.
+
+**Warum das sein muss:** Laut Google‑Doku verfällt der dauerhafte Schlüssel im Status „Testen“ nach **7 Tagen**. Dann müsstest du dich wöchentlich neu anmelden.
+
+Was sich dadurch ändert: Die Warnung „Google hat diese App nicht überprüft“ bleibt bestehen (die App ist nicht verifiziert), und grundsätzlich könnte sich jede Person mit dem Link anmelden. Das ist unkritisch, weil die App nur den Bereich `calendar.app.created` nutzt: Jede Anmeldung bekommt einen **eigenen** Kalender im **eigenen** Google Konto. Fremde können deine Daten damit nicht sehen.
+
+### 3. Supabase: Clientschlüssel hinterlegen
+
+In der Google Cloud Console beim Client „Zyklus Web“ den **Clientschlüssel** (Client Secret) anzeigen bzw. neu erstellen und kopieren.
+
+Dann im Supabase‑Projekt **zyklus** → Project Settings → **Edge Functions → Secrets** zwei Einträge anlegen:
+
+| Name | Wert |
+|---|---|
+| `GOOGLE_CLIENT_ID` | `762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | der kopierte Clientschlüssel |
+
+Direktlink: https://supabase.com/dashboard/project/vuflkltoonlgvesopcju/settings/functions
+
+**Wichtig:** Der Clientschlüssel gehört nirgendwo anders hin – nicht ins Repository, nicht in die App, nicht in eine Nachricht.
+
+### 4. Fertig
+
+https://fwgziemann-lab.github.io/zyklus/v2/ öffnen → „Mit Google verbinden“ → bestätigen. Danach: App schließen, wieder öffnen – oben muss ohne Zutun „synchronisiert“ stehen.
+
+Auf dem Handy: Seite öffnen → Menü → „Zum Startbildschirm hinzufügen“.
+
+## Technik
+
+| Teil | Wo |
+|---|---|
+| App | GitHub Pages, Ordner `v2/` |
+| `auth.js` | Anmeldung über Authorization Code mit PKCE, Verwaltung des Geräte‑Geheimnisses |
+| `config.js` | öffentliche Adressen und Schlüssel |
+| Serverfunktion `google-connect` | tauscht den Einmal‑Code gegen den Dauerschlüssel und verwahrt ihn |
+| Serverfunktion `google-token` | gibt frische Stundenschlüssel aus, löscht bei Entzug |
+| Tabelle `devices` | Hash des Geräte‑Geheimnisses, Dauerschlüssel, Zeitstempel; RLS an, keine Policy – nur die Serverfunktionen kommen heran |
+
+Supabase‑Projekt: `zyklus` (Region Frankfurt, `vuflkltoonlgvesopcju`).
+
+## Wenn etwas nicht geht
+
+**„Server nicht eingerichtet“** – die beiden Secrets in Supabase fehlen (Schritt 3).
+
+**„redirect_uri_mismatch“ bei Google** – Schritt 1 fehlt oder die Adresse stimmt nicht genau (mit Schrägstrich am Ende).
+
+**Nach 7 Tagen wieder abgemeldet** – Schritt 2 fehlt, die App steht noch auf „Testen“.
+
+**„Neu verbinden nötig“** – der Zugriff wurde bei Google entzogen (myaccount.google.com → Sicherheit → Drittanbieter‑Apps) oder sechs Monate nicht genutzt. Einmal neu verbinden.
+
+**Verbindung auf einem Gerät lösen** – Einstellungen → „Trennen“. Das widerruft den Zugriff bei Google und löscht den Eintrag auf dem Server.
+
+**Option „Nichts lokal speichern“** – dann kann das Geräte‑Geheimnis nicht gespeichert werden; die dauerhafte Verbindung funktioniert auf diesem Gerät nicht. Für fremde Geräte ist genau das gewollt.

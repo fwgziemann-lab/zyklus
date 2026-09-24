@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!--
+    Zyklus Kalender
+    Zyklus Version 2: dauerhafte Anmeldung.
+    Aufbau: index.html (Markup + CSS) · config.js (Adressen und Schlüssel) ·
+    auth.js (dauerhafte Anmeldung über Serverfunktion) · core.js (Berechnung) ·
+    crypto.js (Verschlüsselung) · stats.js (Statistik, Bericht) · app.js (Speicher, Sync, UI)
+    Alle hier hinterlegten Schlüssel sind öffentlich unkritisch. Der geheime
+    Clientschlüssel liegt ausschließlich serverseitig bei Supabase.
+  -->
+  <meta name="google-client-id" content="762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    connect-src 'self' https://www.googleapis.com https://vuflkltoonlgvesopcju.supabase.co;
+    img-src 'self' data:;
+    manifest-src 'self';
+    worker-src 'self';
+    base-uri 'none';
+    form-action 'none';
+    object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Zyklus Kalender">
+  <meta name="theme-color" content="#f7f5f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171316" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Zyklus">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Zyklus</title>
+  <style>
+    /* ---------- Farben und Grundlagen ---------- */
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f5f6;
+      --surface: #ffffff;
+      --surface-2: #f0ebed;
+      --text: #2a2426;
+      --muted: #7a6f73;
+      --border: #e4dcdf;
+      --accent: #b9506a;
+      --accent-soft: #f5dfe5;
+      --accent-text: #ffffff;
+      --green: #3d8b5a;
+      --green-soft: #d9eddf;
+      --amber: #b7791f;
+      --amber-soft: #f7ead2;
+      --danger: #b8322f;
+      --b1: #f4d3d9;  /* Schmierblutung */
+      --b2: #ecaab6;  /* leicht */
+      --b3: #de7f92;  /* mittel */
+      --b4: #c8546b;  /* stark */
+      --b5: #9d2c45;  /* sehr stark */
+      --shadow: 0 6px 24px rgba(40, 20, 30, .10);
+      --radius: 14px;
+      --tab-h: 62px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171316;
+        --surface: #221c1f;
+        --surface-2: #2c2428;
+        --text: #f1ecee;
+        --muted: #a79ca1;
+        --border: #3a3136;
+        --accent: #d97b93;
+        --accent-soft: #3d2730;
+        --accent-text: #1b1316;
+        --green: #6cc08a;
+        --green-soft: #1f3a2a;
+        --amber: #e0b163;
+        --amber-soft: #3d3120;
+        --danger: #e2706b;
+        --b1: #5a2f3a;
+        --b2: #7d3a4c;
+        --b3: #a2465f;
+        --b4: #c3566f;
+        --b5: #e07a92;
+        --shadow: 0 6px 24px rgba(0, 0, 0, .35);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      font-size: 16px;
+      line-height: 1.45;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    h1, h2, h3 { font-weight: 650; letter-spacing: -.01em; margin: 0; }
+    h2 { font-size: 1.05rem; margin-bottom: .6rem; }
+    a { color: var(--accent); }
+    [hidden] { display: none !important; }
+    .muted { color: var(--muted); }
+    .small { font-size: .85rem; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    /* ---------- Kopfzeile ---------- */
+    header.top {
+      position: sticky; top: 0; z-index: 20;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: calc(.6rem + env(safe-area-inset-top, 0px)) 1rem .6rem;
+      display: flex; align-items: center; gap: .75rem;
+    }
+    header.top h1 { font-size: 1.15rem; flex: 1; display: flex; align-items: center; gap: .5rem; }
+    header.top h1 img { width: 26px; height: 26px; border-radius: 7px; }
+    .status {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-size: .78rem; padding: .3rem .6rem; border-radius: 999px;
+      background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
+      max-width: 42vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .status.ok::before { background: var(--green); }
+    .status.busy::before { background: var(--amber); animation: pulse 1s infinite alternate; }
+    .status.warn::before { background: var(--amber); }
+    .status.err::before { background: var(--danger); }
+    @keyframes pulse { from { opacity: .4; } to { opacity: 1; } }
+
+    /* ---------- Layout ---------- */
+    main { max-width: 760px; margin: 0 auto; padding: 1rem; }
+    html, body { overflow-x: hidden; max-width: 100%; }
+    section.view { display: none; }
+    section.view.active { display: block; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem; margin-bottom: 1rem;
+    }
+    .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+    .row.between { justify-content: space-between; }
+    .stack > * + * { margin-top: .75rem; }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+      min-height: 44px; padding: .55rem 1rem; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font-weight: 550; text-decoration: none; transition: background .15s, transform .05s;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .btn.big { width: 100%; min-height: 54px; font-size: 1.05rem; }
+    .btn.ghost { background: transparent; }
+    .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+    .btn.small { min-height: 36px; padding: .3rem .7rem; font-size: .9rem; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .icon-btn { width: 44px; height: 44px; border-radius: 50%; padding: 0; font-size: 1.3rem; }
+
+    /* ---------- Übersicht ---------- */
+    .overview { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .overview .big-num { font-size: 2.4rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+    .overview .label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+    .overview .phase { font-weight: 600; font-size: 1.1rem; }
+    .overview .next { grid-column: 1 / -1; padding-top: .5rem; border-top: 1px solid var(--border); }
+    .notice {
+      font-size: .85rem; color: var(--muted); padding: .6rem .8rem; border-radius: 10px;
+      background: var(--surface-2); margin-top: .75rem;
+    }
+    .notice.warn { background: var(--amber-soft); color: var(--amber); }
+    .notice.info { background: var(--accent-soft); color: var(--accent); }
+
+    /* ---------- Kalender ---------- */
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .cal-head h2 { font-size: 1.1rem; margin: 0; text-transform: capitalize; }
+    .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    .cal-weekdays { color: var(--muted); font-size: .75rem; text-align: center; margin-bottom: 4px; }
+    .cal-weekdays span:nth-child(n+6) { color: var(--accent); }
+    .cal-grid { touch-action: pan-y; }
+    .day {
+      /* min-width: 0 ist wichtig: sonst erzwingt aspect-ratio zusammen mit einer
+         Mindesthöhe auch eine Mindestbreite und das Raster wird breiter als der
+         Bildschirm. Die Touch-Fläche bleibt über die Polsterung groß genug. */
+      position: relative; aspect-ratio: 1 / 1; min-width: 0; min-height: 0;
+      border-radius: 10px; border: 1px solid transparent; background: var(--surface-2);
+      padding: 4px; display: flex; flex-direction: column; align-items: flex-start;
+      font-size: .9rem; text-align: left; -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+    }
+    .day.empty { background: transparent; pointer-events: none; }
+    .day.other { opacity: .45; }
+    .day .num { font-weight: 550; line-height: 1; }
+    .day.today .num {
+      background: var(--text); color: var(--bg); border-radius: 50%;
+      width: 1.5em; height: 1.5em; display: inline-flex; align-items: center; justify-content: center; margin: -3px 0 0 -3px;
+    }
+    .day.future { color: var(--muted); }
+    .day.b-spotting { background: var(--b1); }
+    .day.b-light { background: var(--b2); }
+    .day.b-medium { background: var(--b3); color: #fff; }
+    .day.b-heavy { background: var(--b4); color: #fff; }
+    .day.b-very_heavy { background: var(--b5); color: #fff; }
+    .day.b-medium.today .num, .day.b-heavy.today .num, .day.b-very_heavy.today .num { background: #fff; color: var(--b5); }
+    .day.fertile { background: var(--green-soft); }
+    .day.pred { border: 2px dashed var(--accent); }
+    .day.pred.range { border-style: dotted; }
+    .day.start::after {
+      content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px;
+      border-radius: 50%; background: currentColor; opacity: .85;
+    }
+    .day .ovu {
+      position: absolute; bottom: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 0 2px var(--surface);
+    }
+    .day .marks { margin-top: auto; font-size: .7rem; line-height: 1; display: flex; gap: 2px; opacity: .9; }
+    .legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; font-size: .8rem; color: var(--muted); margin-top: .75rem; }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; }
+    .legend i {
+      width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid transparent;
+    }
+    .legend i.l-b { background: linear-gradient(135deg, var(--b2), var(--b5)); }
+    .legend i.l-pred { border: 2px dashed var(--accent); }
+    .legend i.l-fert { background: var(--green-soft); }
+    .legend i.l-ovu { border-radius: 50%; background: var(--green); width: 9px; height: 9px; }
+    .legend i.l-start { border-radius: 50%; background: var(--text); width: 7px; height: 7px; }
+    .disclaimer { font-size: .82rem; color: var(--muted); margin-top: 1rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 10px; }
+
+    /* Schmale Handys: Polster verkleinern, damit die Tage trotzdem gut treffbar bleiben */
+    @media (max-width: 430px) {
+      main { padding: .6rem; }
+      .card { padding: .75rem; }
+      .cal-weekdays, .cal-grid { gap: 3px; }
+      .day { padding: 3px; font-size: .85rem; }
+      .legend { gap: .4rem .75rem; font-size: .75rem; }
+    }
+
+    /* Sehr schmale Handys (360 px): Polster noch etwas kleiner, damit die
+       Tagesfelder die empfohlenen 44 px Touch-Fläche behalten */
+    @media (max-width: 380px) {
+      main { padding: .4rem; }
+      .card { padding: .6rem; }
+    }
+
+    /* ---------- Tabs ---------- */
+    nav.tabs {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+      display: flex; justify-content: space-around;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: .3rem .25rem calc(.3rem + env(safe-area-inset-bottom, 0px));
+      height: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+    }
+    nav.tabs button {
+      flex: 1; border: 0; background: none; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      font-size: .7rem; padding: .35rem 0; border-radius: 10px;
+    }
+    nav.tabs button .ic { font-size: 1.25rem; line-height: 1; }
+    nav.tabs button.active { color: var(--accent); background: var(--accent-soft); }
+    @media (min-width: 760px) {
+      body { padding-bottom: 2rem; }
+      nav.tabs {
+        position: sticky; top: 0; bottom: auto; justify-content: center; gap: .5rem;
+        border-top: 0; border-bottom: 1px solid var(--border); height: auto; padding: .4rem;
+      }
+      nav.tabs button { flex: 0 0 auto; flex-direction: row; font-size: .9rem; padding: .5rem .9rem; }
+      header.top { position: static; }
+    }
+
+    /* ---------- Editor (Dialog / Bottom Sheet) ---------- */
+    dialog {
+      border: 0; padding: 0; margin: 0; background: transparent; max-width: none; max-height: none;
+      width: 100%; height: 100%; inset: 0; position: fixed;
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    dialog[open] { display: flex; }
+    dialog::backdrop { background: rgba(20, 10, 15, .45); }
+    .sheet {
+      background: var(--surface); width: 100%; max-height: 92vh; max-height: 92dvh;
+      border-radius: 20px 20px 0 0; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: up .22s ease-out;
+    }
+    @keyframes up { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+    @media (min-width: 640px) {
+      dialog { align-items: center; }
+      .sheet { max-width: 560px; border-radius: 20px; max-height: 88vh; }
+    }
+    .sheet-head { padding: .9rem 1rem .5rem; display: flex; align-items: center; gap: .5rem; border-bottom: 1px solid var(--border); }
+    .sheet-head h2 { flex: 1; margin: 0; font-size: 1.05rem; }
+    .sheet-body { padding: 1rem; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .sheet-foot { padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); display: flex; gap: .5rem; }
+    .sheet-foot .btn { flex: 1; }
+    .field { margin-bottom: 1.1rem; }
+    .field > label, .field > .lbl { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .45rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .chip {
+      min-height: 40px; padding: .4rem .8rem; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--surface-2); font-size: .92rem;
+    }
+    .chip[aria-pressed="true"], .chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .bleed { display: grid; grid-template-columns: repeat(6, 1fr); gap: .35rem; }
+    .bleed button {
+      border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px;
+      min-height: 64px; padding: .4rem .1rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+      font-size: .68rem; line-height: 1.1;
+    }
+    .bleed button svg { width: 22px; height: 22px; fill: var(--b4); }
+    .bleed button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .bleed .drops { display: flex; gap: 1px; height: 22px; align-items: center; }
+    .bleed .drops svg { width: 11px; height: 16px; }
+    .bleed .drops.outline svg { fill: none; stroke: var(--b4); stroke-width: 1.5; }
+    .switch, .field > label.switch {
+      /* .field > label setzt display:block; für Schalter muss Flex gewinnen */
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 0;
+    }
+    .field > label.switch { margin-bottom: 0; font-weight: 600; font-size: .9rem; }
+    .switch .small { font-weight: 400; }
+    .switch input { width: 46px; height: 28px; appearance: none; -webkit-appearance: none; background: var(--border); border-radius: 999px; position: relative; flex: none; margin: 0; }
+    .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+    .switch input:checked { background: var(--accent); }
+    .switch input:checked::after { transform: translateX(18px); }
+    .switch input:disabled { opacity: .5; }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    .range-row { display: flex; align-items: center; gap: .75rem; }
+    .range-row output { min-width: 3.2rem; font-weight: 700; font-size: 1.2rem; text-align: right; }
+    input[type=text], input[type=password], input[type=number], input[type=time], textarea, select {
+      width: 100%; padding: .6rem .7rem; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface-2); min-height: 44px;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .inline { display: grid; grid-template-columns: 1fr 100px; gap: .5rem; }
+
+    /* ---------- Statistik ---------- */
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { text-align: left; padding: .45rem .4rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.outlier td { color: var(--amber); }
+    .table-wrap { overflow-x: auto; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; }
+    .kpi { background: var(--surface-2); border-radius: 10px; padding: .7rem .8rem; }
+    .kpi .v { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+    .kpi .l { color: var(--muted); font-size: .78rem; }
+    svg.chart { width: 100%; height: auto; display: block; }
+    svg.chart text { font-size: 11px; fill: var(--muted); }
+    svg.chart .grid { stroke: var(--border); }
+    svg.chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+    svg.chart .dot { fill: var(--accent); }
+    svg.chart .dot.outlier { fill: var(--amber); }
+    svg.chart .avg { stroke: var(--muted); stroke-dasharray: 4 4; }
+    svg.chart .band { fill: var(--accent); opacity: .08; }
+
+    /* ---------- Einstellungen ---------- */
+    .settings .switch { border-bottom: 1px solid var(--border); }
+    .settings .switch:last-child { border-bottom: 0; }
+    .settings .switch .desc { font-size: .8rem; color: var(--muted); }
+    .code { font-family: ui-monospace, Menlo, monospace; font-size: .85rem; word-break: break-all; }
+
+    /* ---------- Toast ---------- */
+    .toast {
+      position: fixed; left: 50%; bottom: calc(var(--tab-h) + 1rem + env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%); background: var(--text); color: var(--bg);
+      padding: .6rem 1rem; border-radius: 999px; font-size: .9rem; z-index: 50; box-shadow: var(--shadow);
+      max-width: 90vw; text-align: center; opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .toast.actionable { pointer-events: auto; display: flex; align-items: center; gap: .75rem; }
+    .toast-action { background: none; border: 0; color: var(--b2); font-weight: 700; padding: .2rem .4rem; text-transform: uppercase; font-size: .8rem; letter-spacing: .03em; }
+    @media (min-width: 760px) { .toast { bottom: 1.5rem; } }
+
+    /* ---------- Druck (Arztbericht) ---------- */
+    @media print {
+      header.top, nav.tabs, .no-print, .toast { display: none !important; }
+      body { background: #fff; color: #000; padding: 0; }
+      main { max-width: none; padding: 0; }
+      section.view { display: none; }
+      section.view#view-report { display: block !important; }
+      .card { border: 0; padding: 0; box-shadow: none; }
+      @page { margin: 12mm; }
+      table { font-size: 10px; }
+      th, td { border-bottom: 1px solid #ccc; white-space: normal; padding: 3px 4px; }
+      .table-wrap { overflow: visible; }
+      tr, .kpi { page-break-inside: avoid; break-inside: avoid; }
+      h3, h4 { page-break-after: avoid; break-after: avoid; }
+      .kpis { grid-template-columns: repeat(4, 1fr); }
+      .kpi { border: 1px solid #ccc; background: none; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Tropfen-Symbol für die Blutungsbuttons -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="drop" viewBox="0 0 12 16"><path d="M6 0.8C6 0.8 1 7 1 10.4a5 5 0 0 0 10 0C11 7 6 0.8 6 0.8z"/></symbol>
+  </svg>
+
+  <header class="top">
+    <h1><img src="icon.svg" alt=""> Zyklus</h1>
+    <span class="status" id="sync-status">nicht verbunden</span>
+    <button class="btn small" id="btn-unlock-top" type="button" hidden>🔒 Entsperren</button>
+    <button class="btn small" id="btn-connect-top" type="button">Verbinden</button>
+  </header>
+
+  <nav class="tabs" aria-label="Bereiche">
+    <button type="button" data-view="calendar" class="active"><span class="ic" aria-hidden="true">📅</span>Kalender</button>
+    <button type="button" data-view="stats"><span class="ic" aria-hidden="true">📈</span>Statistik</button>
+    <button type="button" data-view="report"><span class="ic" aria-hidden="true">🖨</span>Bericht</button>
+    <button type="button" data-view="settings"><span class="ic" aria-hidden="true">⚙️</span>Einstellungen</button>
+  </nav>
+
+  <main>
+    <!-- ================= Kalender ================= -->
+    <section class="view active" id="view-calendar">
+      <div class="card">
+        <div class="overview" id="overview">
+          <div>
+            <div class="label">Zyklustag</div>
+            <div class="big-num" id="ov-day">–</div>
+          </div>
+          <div>
+            <div class="label">Phase</div>
+            <div class="phase" id="ov-phase">–</div>
+            <div class="small muted" id="ov-phase-hint"></div>
+          </div>
+          <div class="next" id="ov-next">Noch keine Periode eingetragen.</div>
+        </div>
+        <div class="notice warn" id="ov-defaults" hidden>Noch weniger als zwei vollständige Zyklen erfasst. Die Vorhersage nutzt die Standardwerte aus den Einstellungen.</div>
+      </div>
+
+      <button class="btn primary big" id="btn-period-today" type="button">🩸 Periode hat heute begonnen</button>
+
+      <div class="card" style="margin-top:1rem">
+        <div class="cal-head">
+          <button class="btn icon-btn ghost" id="cal-prev" type="button" aria-label="Vorheriger Monat">‹</button>
+          <h2 id="cal-title">Monat</h2>
+          <button class="btn icon-btn ghost" id="cal-next" type="button" aria-label="Nächster Monat">›</button>
+        </div>
+        <div class="cal-weekdays"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+        <div class="cal-grid" id="cal-grid" role="grid"></div>
+        <div class="row" style="justify-content:center;margin-top:.6rem">
+          <button class="btn small ghost" id="cal-today" type="button">Heute</button>
+        </div>
+        <div class="legend">
+          <span><i class="l-b"></i> Blutung (heller = leichter)</span>
+          <span><i class="l-start"></i> Periodenstart</span>
+          <span><i class="l-pred"></i> Periode erwartet</span>
+          <span><i class="l-fert"></i> Fruchtbares Fenster</span>
+          <span><i class="l-ovu"></i> Eisprung (ca.)</span>
+          <span>⚡ Schmerzen</span>
+          <span>♥ Geschlechtsverkehr</span>
+          <span>✎ Notiz</span>
+        </div>
+        <div class="disclaimer">
+          <strong>Hinweis:</strong> Alle Vorhersagen sind Schätzungen aus deinen bisherigen Einträgen. Sie sind <strong>nicht zur Verhütung geeignet</strong> und ersetzen keinen ärztlichen Rat.
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Statistik ================= -->
+    <section class="view" id="view-stats">
+      <div class="card">
+        <h2>Übersicht</h2>
+        <div class="kpis" id="stats-kpis"></div>
+        <p class="small muted" id="stats-empty" hidden>Noch keine vollständigen Zyklen. Trag mindestens zwei Periodenstarts ein.</p>
+      </div>
+      <div class="card">
+        <h2>Zykluslängen</h2>
+        <div id="stats-chart"></div>
+        <p class="small muted">Gestrichelt: Durchschnitt. Orange: Ausreißer (unter 18 oder über 50 Tage), die für die Vorhersage nicht zählen.</p>
+      </div>
+      <div class="card">
+        <h2>Schmerz pro Zyklustag</h2>
+        <div id="stats-heatmap"></div>
+        <p class="small muted">Durchschnittliche Schmerzstärke je Zyklustag über alle Zyklen (dunkler = stärker).</p>
+      </div>
+      <div class="card">
+        <h2>Letzte Zyklen</h2>
+        <div class="table-wrap"><table id="stats-table"></table></div>
+      </div>
+    </section>
+
+    <!-- ================= Arztbericht ================= -->
+    <section class="view" id="view-report">
+      <div class="card">
+        <div class="row between no-print">
+          <h2>Arztbericht</h2>
+          <button class="btn primary" id="btn-print" type="button">🖨 Drucken / PDF</button>
+        </div>
+        <p class="small muted no-print">Druckansicht der letzten 6 Zyklen mit allen Werten. Über „Drucken“ lässt sich auch ein PDF erzeugen.</p>
+        <div id="report"></div>
+      </div>
+    </section>
+
+    <!-- ================= Einstellungen ================= -->
+    <section class="view settings" id="view-settings">
+      <div class="card">
+        <h2>Google Kalender</h2>
+        <div class="stack">
+          <div id="google-status" class="small muted">Nicht verbunden.</div>
+          <div class="row">
+            <button class="btn primary" id="btn-connect" type="button">Mit Google verbinden</button>
+            <button class="btn" id="btn-sync" type="button">Jetzt synchronisieren</button>
+            <button class="btn" id="btn-disconnect" type="button">Trennen</button>
+          </div>
+          <div class="notice info">Dieses Gerät bleibt nach einer einmaligen Anmeldung dauerhaft verbunden. Den dauerhaften Schlüssel verwahrt die Serverfunktion, nicht dein Browser.</div>
+          <div class="field">
+            <label for="set-client-id">Google Client ID</label>
+            <input type="text" id="set-client-id" placeholder="…apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+            <div class="small muted">Nur nötig, wenn die Client ID nicht im Code hinterlegt ist.</div>
+          </div>
+          <div id="own-calendar-block">
+          <div class="field">
+            <label for="set-calendar-name">Name des Kalenders in Google</label>
+            <input type="text" id="set-calendar-name" placeholder="Zyklus" maxlength="60">
+          </div>
+          <div class="field">
+            <label for="set-calendar-id">Kalender ID</label>
+            <input type="text" id="set-calendar-id" placeholder="wird beim ersten Verbinden angelegt" autocomplete="off" spellcheck="false" class="code">
+            <div class="small muted">Auf einem neuen Gerät: die ID aus Google Kalender (Einstellungen → Kalender „Zyklus“ → „Kalender-ID“) hier einfügen, oder unten den Kalender suchen lassen.</div>
+            <div class="row" style="margin-top:.5rem">
+              <button class="btn small" id="btn-find-calendar" type="button">Kalender in Google suchen</button>
+              <span class="small muted">Fragt einmalig die Berechtigung „Kalenderliste lesen“ ab.</span>
+            </div>
+          </div>
+          </div>
+
+          <label class="switch"><span>Kalender einer anderen Person mitbenutzen<div class="desc">Gemeinsamer Zyklus-Kalender: Beide sehen und bearbeiten dieselben Einträge. Die andere Person muss den Kalender in Google für dich freigeben, mit dem Recht „Änderungen an Terminen vornehmen“.</div></span><input type="checkbox" id="set-shared"></label>
+          <div class="field" id="set-shared-row" hidden>
+            <label for="set-shared-id">Kalender ID des geteilten Kalenders</label>
+            <input type="text" id="set-shared-id" placeholder="…@group.calendar.google.com" autocomplete="off" spellcheck="false" class="code">
+            <div class="small muted">Die andere Person findet die ID in Google Kalender unter Einstellungen → Kalender „Zyklus“ → „Kalender-ID“.</div>
+            <div class="notice warn" style="margin-top:.5rem">Dafür fragt die App eine weitere Berechtigung an: „Termine in allen Kalendern sehen und bearbeiten“. Google bietet für fremde Kalender keinen engeren Zugriff an. Dieser Bereich muss in Google Cloud eingetragen sein (siehe README).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Vorhersage</h2>
+        <div class="field inline">
+          <label for="set-cycle" style="align-self:center;margin:0">Standard Zykluslänge (Tage)</label>
+          <input type="number" id="set-cycle" min="15" max="90" value="28">
+        </div>
+        <div class="field inline">
+          <label for="set-period" style="align-self:center;margin:0">Standard Periodendauer (Tage)</label>
+          <input type="number" id="set-period" min="1" max="14" value="5">
+        </div>
+        <div class="small muted">Wird genutzt, solange weniger als zwei vollständige Zyklen erfasst sind.</div>
+      </div>
+
+      <div class="card">
+        <h2>In Google schreiben</h2>
+        <label class="switch"><span>Vorhersagen (nächste 3 Perioden)<div class="desc">Als Termin „Periode erwartet (ca.)“</div></span><input type="checkbox" id="set-write-pred"></label>
+        <label class="switch"><span>Fruchtbares Fenster<div class="desc">Standard aus</div></span><input type="checkbox" id="set-write-fertile"></label>
+        <label class="switch"><span>Erinnerung am Vortag der erwarteten Periode<div class="desc">Als Erinnerung am Vorhersage-Termin</div></span><input type="checkbox" id="set-reminder"></label>
+        <div class="field inline" id="set-reminder-time-row">
+          <label for="set-reminder-time" style="align-self:center;margin:0">Uhrzeit der Erinnerung</label>
+          <input type="time" id="set-reminder-time" value="20:00">
+        </div>
+        <label class="switch"><span>Diskreter Modus<div class="desc">Neutrale Termintitel wie „● Z2“ ohne Gesundheitsbegriffe (für Sperrbildschirm und Widgets)</div></span><input type="checkbox" id="set-discreet"></label>
+      </div>
+
+      <div class="card">
+        <h2>Verschlüsselung</h2>
+        <label class="switch"><span>Daten mit eigenem Passwort verschlüsseln<div class="desc">Ende-zu-Ende: Google sieht nur neutrale Titel und Datum. Details nur in der App.</div></span><input type="checkbox" id="set-encryption"></label>
+        <div class="small muted" id="enc-status" style="margin-top:.5rem"></div>
+        <div class="row" style="margin-top:.5rem"><button class="btn small" id="btn-unlock" type="button" hidden>🔒 Passwort eingeben</button></div>
+        <div class="notice warn" style="margin-top:.75rem"><strong>Wichtig:</strong> Das Passwort wird nirgends gespeichert und kann nicht zurückgesetzt werden. Wer es vergisst, verliert alle Daten in Google. Mach vorher einen JSON Export als Backup.</div>
+      </div>
+
+      <div class="card">
+        <h2>Gerät und Daten</h2>
+        <label class="switch"><span>Nichts lokal speichern<div class="desc">Für fremde Geräte: kein Cache, keine Einstellungen im Browser. Gilt bis zum Schließen des Tabs.</div></span><input type="checkbox" id="set-nolocal"></label>
+        <div class="row" style="margin-top:.75rem">
+          <button class="btn" id="btn-export" type="button">JSON Export</button>
+          <button class="btn" id="btn-import" type="button">JSON Import</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </div>
+        <div class="small muted" style="margin-top:.5rem">Der Export enthält alle Tageseinträge. Bitte privat ablegen, nicht im Projektordner.</div>
+        <div class="row" style="margin-top:1rem">
+          <button class="btn danger" id="btn-delete-all" type="button">Alle Daten löschen</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Hilfe</h2>
+        <div class="row">
+          <button class="btn" id="btn-report-problem" type="button">✉️ Problem melden</button>
+          <span class="small muted">Öffnet dein Mailprogramm mit einer vorbereiteten Nachricht (mit den letzten Eingaben als Kontext).</span>
+        </div>
+      </div>
+
+      <div class="card small muted">
+        <div>Zyklus App · <span id="app-version"></span> · <a href="test.html">Tests</a></div>
+        <div>Keine externen Schriften, kein Tracking. Daten liegen nur in deinem Google Kalender und im Cache dieses Browsers.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= Tageseditor ================= -->
+  <dialog id="editor" aria-labelledby="editor-title">
+    <form class="sheet" id="editor-form" method="dialog">
+      <div class="sheet-head">
+        <h2 id="editor-title">Tag</h2>
+        <button class="btn icon-btn ghost" type="button" id="editor-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field">
+          <div class="lbl">Blutung</div>
+          <div class="bleed" id="ed-bleeding" role="group" aria-label="Blutung">
+            <button type="button" data-v="none" aria-pressed="true"><span class="drops outline"><svg><use href="#drop"/></svg></span>keine</button>
+            <button type="button" data-v="spotting"><span class="drops"><svg style="width:8px;height:12px"><use href="#drop"/></svg></span>Schmier-blutung</button>
+            <button type="button" data-v="light"><span class="drops"><svg><use href="#drop"/></svg></span>leicht</button>
+            <button type="button" data-v="medium"><span class="drops"><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg></span>mittel</button>
+            <button type="button" data-v="heavy"><span class="drops"><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg></span>stark</button>
+            <button type="button" data-v="very_heavy"><span class="drops"><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg><svg><use href="#drop"/></svg></span>sehr stark</button>
+          </div>
+        </div>
+
+        <label class="switch field"><span>Erster Tag der Periode<div class="small muted" id="ed-start-hint"></div></span><input type="checkbox" id="ed-period-start"></label>
+
+        <div class="field">
+          <label for="ed-pain">Schmerzen</label>
+          <div class="range-row">
+            <input type="range" id="ed-pain" min="0" max="10" step="1" value="0">
+            <output id="ed-pain-out" for="ed-pain">0/10</output>
+          </div>
+          <div class="chips" id="ed-pain-loc" style="margin-top:.5rem"></div>
+        </div>
+
+        <div class="field">
+          <div class="lbl">Symptome</div>
+          <div class="chips" id="ed-symptoms"></div>
+        </div>
+
+        <div class="field">
+          <div class="lbl">Stimmung</div>
+          <div class="chips" id="ed-mood"></div>
+        </div>
+
+        <div class="field">
+          <label class="switch" style="padding:0"><span>Schmerzmittel genommen</span><input type="checkbox" id="ed-med"></label>
+          <div class="inline" id="ed-med-details" style="margin-top:.5rem" hidden>
+            <input type="text" id="ed-med-name" placeholder="Name (optional)" maxlength="80" autocomplete="off">
+            <input type="number" id="ed-med-count" placeholder="Anzahl" min="0" max="99" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="lbl">Hygieneprodukt</div>
+          <div class="chips" id="ed-product"></div>
+          <div class="inline" style="margin-top:.5rem">
+            <label for="ed-product-changes" style="align-self:center;font-weight:400">Anzahl Wechsel</label>
+            <input type="number" id="ed-product-changes" min="0" max="99" inputmode="numeric" placeholder="0">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="switch" style="padding:0"><span>Geschlechtsverkehr<div class="small muted">Steht nie im Termintitel, nur in der Beschreibung.</div></span><input type="checkbox" id="ed-sex"></label>
+          <div class="chips" id="ed-sex-protection" style="margin-top:.5rem" hidden></div>
+        </div>
+
+        <div class="field">
+          <label for="ed-note">Notiz</label>
+          <textarea id="ed-note" maxlength="1000" placeholder="Freitext …"></textarea>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn danger" type="button" id="editor-delete">Löschen</button>
+        <button class="btn primary" type="submit" id="editor-save">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ================= Startbildschirm (Anmeldung zuerst) ================= -->
+  <dialog id="welcome" aria-labelledby="welcome-title">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h2 id="welcome-title">Willkommen</h2>
+      </div>
+      <div class="sheet-body" style="text-align:center">
+        <img src="icon.svg" alt="" width="64" height="64" style="border-radius:16px;margin:.5rem auto 1rem;display:block">
+        <p id="welcome-text" class="small"></p>
+        <p class="small muted" id="welcome-queue" hidden></p>
+        <div class="small" id="welcome-error" style="color:var(--danger);min-height:1.2em"></div>
+      </div>
+      <div class="sheet-foot" style="flex-direction:column;gap:.5rem">
+        <button class="btn primary big" id="welcome-connect" type="button">Mit Google verbinden</button>
+        <button class="btn ghost small" id="welcome-skip" type="button">Später, erst mal ohne Verbindung</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ================= Passwort-Dialog (Verschlüsselung) ================= -->
+  <dialog id="pw-dialog" aria-labelledby="pw-title">
+    <form class="sheet" id="pw-form">
+      <div class="sheet-head">
+        <h2 id="pw-title">Passwort</h2>
+        <button class="btn icon-btn ghost" type="button" id="pw-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p id="pw-intro" class="small"></p>
+        <div class="field">
+          <label for="pw-pass">Passwort</label>
+          <input type="password" id="pw-pass" autocomplete="off" minlength="1">
+        </div>
+        <div id="pw-setup-only">
+          <div class="field">
+            <label for="pw-pass2">Passwort wiederholen</label>
+            <input type="password" id="pw-pass2" autocomplete="off">
+          </div>
+          <div class="notice warn"><strong>Kein Zurück:</strong> Das Passwort wird nirgends gespeichert. Ohne Passwort sind alle Daten in Google unlesbar und verloren. Bewahre es sicher auf (z. B. im Passwortmanager) und mach vorher einen JSON Export.</div>
+          <label class="switch"><span>Ich habe verstanden, dass bei vergessenem Passwort alle Daten verloren sind.</span><input type="checkbox" id="pw-ack"></label>
+        </div>
+        <div class="small" id="pw-error" style="color:var(--danger);min-height:1.2em"></div>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn primary" type="submit" id="pw-submit">Entsperren</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="core.js"></script>
+  <script src="crypto.js"></script>
+  <script src="stats.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

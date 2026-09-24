@@ -5,8 +5,8 @@
  * direkt beim nächsten Laden mit Verbindung. Es werden nur eigene Dateien
  * gecacht, nie Google-Antworten oder Nutzerdaten.
  */
-const CACHE = 'zyklus-shell-v6';
-const SHELL = ['./', './index.html', './core.js', './crypto.js', './app.js', './stats.js', './icon.svg', './icon-180.png', './manifest.webmanifest'];
+const CACHE = 'zyklus-v2-shell-v1';
+const SHELL = ['./', './index.html', './config.js', './auth.js', './core.js', './crypto.js', './app.js', './stats.js', './icon.svg', './icon-180.png', './manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) {
@@ -23,7 +23,6 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // Google & Co. nie anfassen
-  if (url.pathname.indexOf('/v2/') >= 0) return; // Version 2 verwaltet sich selbst
   e.respondWith(
     fetch(e.request).then(function (res) {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }
