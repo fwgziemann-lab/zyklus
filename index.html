@@ -227,6 +227,8 @@
     .legend i.l-ovu { border-radius: 50%; background: var(--green); width: 9px; height: 9px; }
     .legend i.l-start { border-radius: 50%; background: var(--text); width: 7px; height: 7px; }
     .disclaimer { font-size: .82rem; color: var(--muted); margin-top: 1rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 10px; }
+    .page-footer { text-align: center; font-size: .82rem; color: var(--muted); margin: 0 0 1rem; }
+    .page-footer a { color: var(--muted); }
 
     /* Schmale Handys: Polster verkleinern, damit die Tage trotzdem gut treffbar bleiben */
     @media (max-width: 430px) {
@@ -457,6 +459,13 @@
           <strong>Hinweis:</strong> Alle Vorhersagen sind Schätzungen aus deinen bisherigen Einträgen. Sie sind <strong>nicht zur Verhütung geeignet</strong> und ersetzen keinen ärztlichen Rat.
         </div>
       </div>
+
+      <!-- Sichtbar auf der Startseite, unter anderem weil Google diese Links im
+           Anmeldevorgang erwartet. -->
+      <p class="page-footer">
+        <a href="datenschutz.html">Datenschutzerklärung</a> ·
+        <a href="nutzungsbedingungen.html">Nutzungsbedingungen</a>
+      </p>
     </section>
 
     <!-- ================= Statistik ================= -->
