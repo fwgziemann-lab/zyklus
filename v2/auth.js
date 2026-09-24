@@ -30,9 +30,9 @@
 
   const CFG = root.ZyklusConfig || {};
   const SUPABASE_URL = (CFG.supabaseUrl || '').replace(/\/+$/, '');
-  const SUPABASE_KEY = CFG.supabaseKey || '';
   const CLIENT_ID = CFG.googleClientId || '';
   const SCOPE = CFG.scope || 'https://www.googleapis.com/auth/calendar.app.created';
+  const FN_PREFIX = CFG.functionPrefix || '';
 
   const KEY_DEVICE = 'zyklus.device';     // Geräte-Geheimnis (dauerhaft)
   const KEY_VERIFIER = 'zyklus.pkce';     // nur während der Anmeldung
@@ -81,7 +81,7 @@
   }
 
   function configured() {
-    return !!(SUPABASE_URL && SUPABASE_KEY && CLIENT_ID);
+    return !!(SUPABASE_URL && CLIENT_ID);
   }
   function connected() {
     return !!read(KEY_DEVICE);
@@ -91,9 +91,9 @@
   }
 
   async function callFunction(name, body) {
-    const res = await fetch(SUPABASE_URL + '/functions/v1/' + name, {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/' + FN_PREFIX + name, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     let data = null;

@@ -56,14 +56,16 @@ Was sich dadurch ändert: Die Warnung „Google hat diese App nicht überprüft�
 
 In der Google Cloud Console beim Client „Zyklus Web“ den **Clientschlüssel** (Client Secret) anzeigen bzw. neu erstellen und kopieren.
 
-Dann im Supabase‑Projekt **zyklus** → Project Settings → **Edge Functions → Secrets** zwei Einträge anlegen:
+Dann im Supabase‑Projekt **mail-ticket-app** → Project Settings → **Edge Functions → Secrets** zwei Einträge anlegen:
 
 | Name | Wert |
 |---|---|
-| `GOOGLE_CLIENT_ID` | `762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | der kopierte Clientschlüssel |
+| `ZYKLUS_GOOGLE_CLIENT_ID` | `762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com` |
+| `ZYKLUS_GOOGLE_CLIENT_SECRET` | der kopierte Clientschlüssel |
 
-Direktlink: https://supabase.com/dashboard/project/vuflkltoonlgvesopcju/settings/functions
+Direktlink: https://supabase.com/dashboard/project/yhjznfgwliflplmwucms/settings/functions
+
+Die Namen beginnen bewusst mit `ZYKLUS_`, damit sie sich nicht mit möglichen späteren Einstellungen der Mail‑Ticket‑App überschneiden.
 
 **Wichtig:** Der Clientschlüssel gehört nirgendwo anders hin – nicht ins Repository, nicht in die App, nicht in eine Nachricht.
 
@@ -80,11 +82,24 @@ Auf dem Handy: Seite öffnen → Menü → „Zum Startbildschirm hinzufügen“
 | App | GitHub Pages, Ordner `v2/` |
 | `auth.js` | Anmeldung über Authorization Code mit PKCE, Verwaltung des Geräte‑Geheimnisses |
 | `config.js` | öffentliche Adressen und Schlüssel |
-| Serverfunktion `google-connect` | tauscht den Einmal‑Code gegen den Dauerschlüssel und verwahrt ihn |
-| Serverfunktion `google-token` | gibt frische Stundenschlüssel aus, löscht bei Entzug |
-| Tabelle `devices` | Hash des Geräte‑Geheimnisses, Dauerschlüssel, Zeitstempel; RLS an, keine Policy – nur die Serverfunktionen kommen heran |
+| Serverfunktion `zyklus-google-connect` | tauscht den Einmal‑Code gegen den Dauerschlüssel und verwahrt ihn |
+| Serverfunktion `zyklus-google-token` | gibt frische Stundenschlüssel aus, löscht bei Entzug |
+| Tabelle `zyklus_devices` | Hash des Geräte‑Geheimnisses, Dauerschlüssel, Zeitstempel; RLS an, keine Policy – nur die Serverfunktionen kommen heran |
 
-Supabase‑Projekt: `zyklus` (Region Frankfurt, `vuflkltoonlgvesopcju`).
+Supabase‑Projekt: **mail-ticket-app** (Region Frankfurt, `yhjznfgwliflplmwucms`).
+
+### Warum das die Mail‑Ticket‑App nicht stört
+
+Die Zyklus‑Teile liegen im selben Projekt, sind aber vollständig getrennt:
+
+* **Tabelle:** heißt `zyklus_devices`. Die Mail‑Ticket‑App hat keine Tabelle dieses Namens (ihre heißen `Ticket`, `Order`, `Product` …). Es wurde nichts Bestehendes verändert, nur eine Tabelle hinzugefügt.
+* **Funktionen:** heißen `zyklus-google-connect` und `zyklus-google-token`. Die Mail‑Ticket‑App hatte vorher **gar keine** Edge Functions.
+* **Secrets:** heißen `ZYKLUS_GOOGLE_*` und können deshalb nichts überschreiben.
+* **Rechte:** Die Tabelle hat RLS an und bewusst keine Policy; `anon` und `authenticated` wurden alle Rechte entzogen. Nur die beiden Funktionen kommen heran.
+* **Projektschlüssel:** Die öffentliche Zyklus‑App enthält **keinen** Supabase‑Schlüssel. Die beiden Funktionen sind ohne ihn erreichbar, also steht kein Schlüssel des Mail‑Ticket‑Projekts auf einer öffentlichen Webseite.
+* **Last:** ein paar Datenbankzugriffe pro Tag, ein Datensatz pro Gerät.
+
+Rückstandslos entfernen ließe sich alles mit `drop table public.zyklus_devices;` und dem Löschen der beiden Funktionen.
 
 ## Wenn etwas nicht geht
 
