@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:">
+  <meta name="robots" content="noindex">
+  <title>Datenschutz · Zyklus</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f7f5f6; --fg:#2a2426; --muted:#7a6f73; --accent:#b9506a; --border:#e4dcdf; --surface:#fff; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#171316; --fg:#f1ecee; --muted:#a79ca1; --accent:#d97b93; --border:#3a3136; --surface:#221c1f; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 1.5rem 1rem 4rem;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6; background: var(--bg); color: var(--fg);
+    }
+    main { max-width: 46rem; margin: 0 auto; }
+    h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; letter-spacing: -.01em; }
+    p, li { font-size: .96rem; }
+    ul { padding-left: 1.2rem; }
+    a { color: var(--accent); }
+    .lead { color: var(--muted); margin-top: 0; }
+    .box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; }
+    table { width: 100%; border-collapse: collapse; margin: .5rem 0; font-size: .92rem; }
+    th, td { text-align: left; vertical-align: top; padding: .5rem .4rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Datenschutzerklärung</h1>
+  <p class="lead">für die private Web-App „Zyklus“ · Stand: 24. September 2026</p>
+
+  <h2>1. Verantwortlich</h2>
+  <p>
+    Frederic Ziemann<br>
+    E-Mail: <a href="mailto:fwgzie@gmail.com">fwgzie@gmail.com</a>
+  </p>
+  <p>„Zyklus“ ist eine private, kostenlose Anwendung ohne kommerziellen Zweck. Sie wird nicht öffentlich beworben und richtet sich an einen kleinen, persönlich bekannten Nutzerkreis.</p>
+
+  <h2>2. Was die App macht</h2>
+  <p>Mit „Zyklus“ lassen sich Angaben zum Menstruationszyklus erfassen: Blutungsstärke, Schmerzen, Symptome, Stimmung, Medikamente, Hygieneprodukte, Geschlechtsverkehr und freie Notizen. Aus diesen Angaben berechnet die App Zykluslängen und voraussichtliche nächste Perioden.</p>
+
+  <h2>3. Welche Daten verarbeitet werden</h2>
+  <p>Ausschließlich die Angaben, die eine Nutzerin selbst einträgt. Es handelt sich dabei um <strong>Gesundheitsdaten</strong> im Sinne von Art. 9 DSGVO. Die App erhebt darüber hinaus <strong>keine</strong> Daten: kein Standort, keine Kontakte, keine Geräte-Kennungen zu Werbezwecken.</p>
+
+  <h2>4. Wo die Daten gespeichert werden</h2>
+  <table>
+    <thead><tr><th>Ort</th><th>Inhalt</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Google Kalender</strong> der Nutzerin</td>
+        <td>Alle Einträge, als Termine in einem eigens angelegten, privaten Kalender („Zyklus“) im Google-Konto der Nutzerin. Dieser Kalender wird von der App nicht freigegeben.</td>
+      </tr>
+      <tr>
+        <td><strong>Browser</strong> des Geräts</td>
+        <td>Eine Kopie der Einträge als Zwischenspeicher, damit die App schnell startet und ohne Internet funktioniert. Über die Einstellung „Nichts lokal speichern“ lässt sich das abschalten.</td>
+      </tr>
+      <tr>
+        <td><strong>Supabase</strong> (Server in Frankfurt am Main, EU)</td>
+        <td>Nur in der Version 2 der App und nur für die dauerhafte Anmeldung: der Zugangsschlüssel („Refresh Token“) zum Google-Konto, der Hash eines Geräte-Geheimnisses, die E-Mail-Adresse des verbundenen Google-Kontos sowie Zeitstempel. <strong>Dort werden keine Gesundheitsdaten gespeichert.</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>Auf dem Webserver, der die App ausliefert (GitHub Pages), werden <strong>keine</strong> Nutzerdaten gespeichert. Dort liegt nur das Programm selbst.</p>
+
+  <h2>5. Weitergabe an Dritte</h2>
+  <p>Es findet keine Weitergabe zu eigenen Zwecken statt. Technisch beteiligt sind ausschließlich:</p>
+  <ul>
+    <li><strong>Google Ireland Limited / Google LLC</strong> – als Anbieter des Google Kalenders, in dem die Daten im Konto der Nutzerin liegen, und für die Anmeldung. Es gilt die <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Datenschutzerklärung von Google</a>.</li>
+    <li><strong>Supabase</strong> – als Betreiber der Serverfunktion für die dauerhafte Anmeldung (siehe Punkt 4; keine Gesundheitsdaten).</li>
+    <li><strong>GitHub Inc.</strong> – als Anbieter des Webhostings der Seite. Beim Aufruf werden technisch bedingt Verbindungsdaten wie die IP-Adresse verarbeitet.</li>
+  </ul>
+
+  <h2>6. Zugriffsrechte bei Google</h2>
+  <p>Die App fragt bewusst nur die Berechtigung <code>calendar.app.created</code> an. Damit kann sie ausschließlich auf den Kalender zugreifen, den sie selbst angelegt hat. Andere Termine im Google-Konto sind für sie nicht sichtbar.</p>
+  <p>Nur wenn eine Nutzerin in den Einstellungen ausdrücklich den gemeinsamen Kalender einer anderen Person einschaltet, wird zusätzlich die Berechtigung <code>calendar.events</code> angefragt, weil Google für fremde Kalender keinen engeren Zugriff anbietet. Auch dann greift die App ausschließlich auf den eingetragenen Kalender zu.</p>
+
+  <h2>7. Kein Tracking</h2>
+  <p>Die App enthält keine Analysewerkzeuge, keine Werbung, keine Cookies zu Werbezwecken, keine externen Schriftarten und keine Weitergabe an Werbenetzwerke.</p>
+
+  <h2>8. Rechtsgrundlage</h2>
+  <p>Die Verarbeitung der Gesundheitsdaten erfolgt auf Grundlage der ausdrücklichen Einwilligung nach Art. 9 Abs. 2 lit. a DSGVO. Die Einwilligung wird durch die Nutzung der App und die Freigabe des Kalenderzugriffs erteilt und kann jederzeit widerrufen werden.</p>
+
+  <h2>9. Speicherdauer und Löschung</h2>
+  <p>Die Daten bleiben gespeichert, bis die Nutzerin sie löscht. Möglichkeiten:</p>
+  <ul>
+    <li><strong>In der App:</strong> Einstellungen → „Alle Daten löschen“ entfernt alle Einträge im Google Kalender und im Browser.</li>
+    <li><strong>In der App:</strong> Einstellungen → „Trennen“ löscht den lokalen Zwischenspeicher und widerruft den Zugriff.</li>
+    <li><strong>In Google:</strong> Der Kalender „Zyklus“ lässt sich jederzeit direkt in Google Kalender löschen.</li>
+    <li><strong>Zugriff entziehen:</strong> über <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer">myaccount.google.com</a> → Sicherheit → Drittanbieter-Apps. Damit wird auch der bei Supabase verwahrte Zugangsschlüssel unbrauchbar.</li>
+  </ul>
+  <p>Ein bei Supabase hinterlegter Zugangsschlüssel wird beim Trennen in der App gelöscht; entzogene oder abgelaufene Schlüssel werden automatisch entfernt.</p>
+
+  <h2>10. Verschlüsselung</h2>
+  <p>Optional lässt sich in den Einstellungen eine Ende-zu-Ende-Verschlüsselung mit eigenem Passwort einschalten (AES-GCM, Schlüssel aus dem Passwort über PBKDF2). Danach stehen im Google Kalender nur noch neutrale Titel; die Inhalte sind ausschließlich in der App lesbar. Das Passwort wird nirgends gespeichert und kann nicht zurückgesetzt werden.</p>
+
+  <h2>11. Rechte der betroffenen Personen</h2>
+  <p>Es bestehen die Rechte auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerruf der Einwilligung (Art. 7 Abs. 3) sowie ein Beschwerderecht bei einer Aufsichtsbehörde (Art. 77). Da die Daten im eigenen Google-Konto liegen, lassen sich Auskunft, Berichtigung, Löschung und Export jederzeit selbst ausführen; die App bietet dafür zusätzlich einen JSON-Export.</p>
+
+  <h2>12. Kein Medizinprodukt</h2>
+  <div class="box">
+    <strong>Wichtiger Hinweis:</strong> Alle Berechnungen und Vorhersagen sind Schätzungen aus den eingetragenen Werten. Sie sind <strong>nicht zur Verhütung geeignet</strong>, stellen keine medizinische Beratung dar und ersetzen keinen ärztlichen Rat.
+  </div>
+
+  <h2>13. Kontakt</h2>
+  <p>Fragen zum Datenschutz: <a href="mailto:fwgzie@gmail.com">fwgzie@gmail.com</a></p>
+
+  <footer>
+    <a href="./">Zurück zur App</a> · <a href="nutzungsbedingungen.html">Nutzungsbedingungen</a>
+  </footer>
+</main>
+</body>
+</html>

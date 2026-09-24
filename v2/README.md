@@ -67,6 +67,14 @@ Direktlink: https://supabase.com/dashboard/project/yhjznfgwliflplmwucms/settings
 
 Die Namen beginnen bewusst mit `ZYKLUS_`, damit sie sich nicht mit möglichen späteren Einstellungen der Mail‑Ticket‑App überschneiden.
 
+**Dringend empfohlen – dritter Eintrag:** `ZYKLUS_ALLOWED_EMAILS` mit den Google‑Konten, die die App benutzen dürfen, durch Komma getrennt, zum Beispiel:
+
+```
+fwgzie@gmail.com,konto-der-freundin@gmail.com
+```
+
+Ist dieser Eintrag gesetzt, weist der Server jedes andere Google‑Konto beim Verbinden ab und gibt den gerade erhaltenen Zugriff sofort an Google zurück. Ohne den Eintrag darf sich jedes Google‑Konto verbinden – dann jeweils nur mit seinem **eigenen** Kalender im **eigenen** Konto, fremde Daten sind dabei nie sichtbar.
+
 **Wichtig:** Der Clientschlüssel gehört nirgendwo anders hin – nicht ins Repository, nicht in die App, nicht in eine Nachricht.
 
 ### 4. Fertig
@@ -101,9 +109,20 @@ Die Zyklus‑Teile liegen im selben Projekt, sind aber vollständig getrennt:
 
 Rückstandslos entfernen ließe sich alles mit `drop table public.zyklus_devices;` und dem Löschen der beiden Funktionen.
 
+## Wer kann die App benutzen?
+
+Die Webseite selbst ist öffentlich erreichbar – das ist bei GitHub Pages so und lässt sich nicht abschalten, ohne die App unbrauchbar zu machen. Wichtig ist aber der Unterschied zwischen *Seite* und *Daten*:
+
+* Wer die Adresse öffnet, sieht eine **leere App**. Es sind keinerlei Daten enthalten.
+* Verbindet sich jemand mit seinem eigenen Google‑Konto, legt die App in **dessen** Konto einen eigenen Kalender an. Eure Einträge liegen in **eurem** Konto und sind für ihn nicht erreichbar – die Berechtigung `calendar.app.created` erlaubt nur Zugriff auf selbst angelegte Kalender.
+* Mit `ZYKLUS_ALLOWED_EMAILS` (siehe oben) lässt sich zusätzlich festlegen, dass sich überhaupt nur bestimmte Konten verbinden dürfen.
+* Keinen Schutz gibt es derzeit gegen jemanden, der das **entsperrte Handy** in die Hand bekommt: Dort ist die App offen wie jede andere App auch. Eine eigene PIN‑Sperre für die App ist nicht eingebaut.
+
 ## Wenn etwas nicht geht
 
 **„Server nicht eingerichtet“** – die beiden Secrets in Supabase fehlen (Schritt 3).
+
+**„Konto nicht freigegeben“** – das Google‑Konto steht nicht in `ZYKLUS_ALLOWED_EMAILS`.
 
 **„redirect_uri_mismatch“ bei Google** – Schritt 1 fehlt oder die Adresse stimmt nicht genau (mit Schrägstrich am Ende).
 
