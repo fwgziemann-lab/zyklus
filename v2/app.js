@@ -52,7 +52,8 @@
     discreet: false,
     writePredictions: true,
     writeFertile: false,
-    sharedVisible: false,   // Einträge auch für reine Leser eines geteilten Kalenders sichtbar
+    sharedVisible: true,    // Einträge auch für reine Leser eines geteilten Kalenders sichtbar
+    visibilityMigrated: false,
     reminder: false,
     reminderTime: '20:00',
     connectedBefore: false,
@@ -510,6 +511,26 @@
       state.queue.shift();
       persist();
     }
+  }
+
+  /**
+   * Einmalige Umstellung für alle, die die App schon vorher benutzt haben:
+   * Früher wurden Termine immer als "privat" geschrieben. Google zeigt davon
+   * niemandem die Details, der einen geteilten Kalender nur lesen darf. Deshalb
+   * wird die Einstellung einmalig eingeschaltet und alle Einträge neu
+   * hochgeladen. Wer das nicht möchte, schaltet den Schalter danach aus.
+   */
+  function migrateVisibility() {
+    if (state.settings.visibilityMigrated) return;
+    state.settings.visibilityMigrated = true;
+    const count = Object.keys(state.entries).length;
+    if (!state.settings.sharedVisible) {
+      state.settings.sharedVisible = true;
+      Object.keys(state.entries).forEach(queueDay);
+      state.remote.predSig = '';
+      if (count) toast(count + ' Einträge werden für geteilte Kalender sichtbar gemacht');
+    }
+    persist();
   }
 
   /**
@@ -1295,6 +1316,7 @@
   async function init() {
     await loadKey();
     recompute();
+    migrateVisibility();
     initEditor();
     bindSettings();
     bindCalendarNav();

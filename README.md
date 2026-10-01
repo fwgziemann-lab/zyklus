@@ -134,8 +134,9 @@ Wenn zwei Personen dieselben Einträge sehen und bearbeiten wollen (z. B. du und
 
 **Wichtig dabei:** Die App legt ihre Termine normalerweise mit der Sichtbarkeit „privat“ an. Google versteht darunter, dass nur Teilnehmer die Details sehen – wer den Kalender nur lesen darf, sieht dann zwar den Kalender, aber keine Inhalte. Damit das Mitlesen funktioniert, braucht es eines von beidem:
 
-* in der App (bei derjenigen, der der Kalender gehört): Einstellungen → **„Einträge für geteilte Kalender sichtbar machen“** einschalten. Danach schreibt die App alle Termine einmal neu, und sie sind für Leser sichtbar; oder
-* in Google Kalender die Freigabe auf **„Änderungen an Terminen vornehmen“** stellen statt auf „Alle Termindetails sehen“.
+Seit der aktuellen Fassung erledigt die App das **von selbst**: Die Einstellung „Einträge für geteilte Kalender sichtbar machen“ ist standardmäßig an, und beim ersten Öffnen nach dem Update werden alle vorhandenen Termine einmal neu geschrieben. Man muss also nichts tun, außer die App einmal zu öffnen und synchronisieren zu lassen.
+
+Wer die Einträge bewusst wieder unsichtbar machen will, schaltet den Schalter in den Einstellungen aus. Alternativ ginge auch, in Google Kalender die Freigabe auf **„Änderungen an Terminen vornehmen“** zu stellen statt auf „Alle Termindetails sehen“.
 
 **Weg B – gemeinsam in der Zyklus App arbeiten.**
 
