@@ -132,6 +132,11 @@ Wenn zwei Personen dieselben Einträge sehen und bearbeiten wollen (z. B. du und
 
 **Weg A – nur mitlesen, ohne Änderung an der App.** Diejenige, bei der die Daten liegen, gibt in Google Kalender den Kalender „Zyklus“ für das andere Google Konto frei (Einstellungen → Kalender „Zyklus“ → „Für bestimmte Personen freigeben“). Die andere Person sieht die Termine dann in ihrer Google Kalender App. Im diskreten Modus stehen dort nur neutrale Titel, bei eingeschalteter Verschlüsselung gar nichts Lesbares.
 
+**Wichtig dabei:** Die App legt ihre Termine normalerweise mit der Sichtbarkeit „privat“ an. Google versteht darunter, dass nur Teilnehmer die Details sehen – wer den Kalender nur lesen darf, sieht dann zwar den Kalender, aber keine Inhalte. Damit das Mitlesen funktioniert, braucht es eines von beidem:
+
+* in der App (bei derjenigen, der der Kalender gehört): Einstellungen → **„Einträge für geteilte Kalender sichtbar machen“** einschalten. Danach schreibt die App alle Termine einmal neu, und sie sind für Leser sichtbar; oder
+* in Google Kalender die Freigabe auf **„Änderungen an Terminen vornehmen“** stellen statt auf „Alle Termindetails sehen“.
+
 **Weg B – gemeinsam in der Zyklus App arbeiten.**
 
 1. Person 1 (bei der der Kalender liegt) gibt in Google Kalender den Kalender „Zyklus“ für das Google Konto von Person 2 frei, mit der Berechtigung **„Änderungen an Terminen vornehmen“**.

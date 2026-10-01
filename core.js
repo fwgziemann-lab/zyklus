@@ -631,7 +631,10 @@
       start: { date: e.date },
       end: { date: addDays(e.date, 1) },        // Enddatum ist exklusiv
       transparency: 'transparent',
-      visibility: 'private',
+      // "private" heißt bei Google: nur Teilnehmer sehen die Details. Wer einen
+      // geteilten Kalender nur lesen darf, sieht dann nichts. Mit ctx.visibility
+      // = "default" werden die Einträge für solche Personen sichtbar.
+      visibility: ctx.visibility || 'private',
       reminders: { useDefault: false, overrides: [] },
       colorId: colorId,
       extendedProperties: {
@@ -670,7 +673,7 @@
       start: { date: irregular ? pred.rangeStart : pred.start },
       end: { date: addDays(irregular ? pred.rangeEnd : pred.end, 1) },
       transparency: 'transparent',
-      visibility: 'private',
+      visibility: ctx.visibility || 'private',
       reminders: { useDefault: false, overrides: overrides },
       colorId: COLOR.prediction,
       extendedProperties: {
@@ -689,7 +692,7 @@
       start: { date: pred.fertileStart },
       end: { date: addDays(pred.fertileEnd, 1) },
       transparency: 'transparent',
-      visibility: 'private',
+      visibility: ctx.visibility || 'private',
       reminders: { useDefault: false, overrides: [] },
       colorId: COLOR.fertile,
       extendedProperties: {

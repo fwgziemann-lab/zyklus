@@ -346,6 +346,17 @@
     assert(C.buildDayEvent(e2, { periods: [], discreet: true }).summary.indexOf('♥') < 0);
   });
 
+  test('Sichtbarkeit: privat als Standard, "default" fuer geteilte Kalender', function () {
+    const e = C.emptyEntry('2026-10-01');
+    e.bleeding = 'medium';
+    eq(C.buildDayEvent(e, { periods: [] }).visibility, 'private', 'Standard bleibt privat');
+    eq(C.buildDayEvent(e, { periods: [], visibility: 'default' }).visibility, 'default');
+    const pred = { start: '2026-10-20', end: '2026-10-24', rangeStart: '2026-10-20', rangeEnd: '2026-10-20', ovulation: '2026-10-06', fertileStart: '2026-10-01', fertileEnd: '2026-10-07' };
+    eq(C.buildPredictionEvent(pred, {}).visibility, 'private');
+    eq(C.buildPredictionEvent(pred, { visibility: 'default' }).visibility, 'default');
+    eq(C.buildFertileEvent(pred, { visibility: 'default' }).visibility, 'default');
+  });
+
   test('Diskreter Modus: neutrale Titel ohne Gesundheitsbegriffe', function () {
     const data = entries(concat(period('2026-09-01', 5)));
     const periods = C.detectPeriods(data);

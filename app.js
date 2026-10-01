@@ -48,6 +48,7 @@
     discreet: false,
     writePredictions: true,
     writeFertile: false,
+    sharedVisible: false,   // Einträge auch für reine Leser eines geteilten Kalenders sichtbar
     reminder: false,
     reminderTime: '20:00',
     connectedBefore: false,
@@ -516,7 +517,11 @@
   async function pushDay(entry) {
     const calId = activeCalendarId();
     const id = C.eventId('day', entry.date);
-    const body = await encodeForRemote(C.buildDayEvent(entry, { periods: state.pred.periods, discreet: state.settings.discreet || encryptionOn() }));
+    const body = await encodeForRemote(C.buildDayEvent(entry, {
+      periods: state.pred.periods,
+      discreet: state.settings.discreet || encryptionOn(),
+      visibility: eventVisibility()
+    }));
     await upsertEvent(calId, id, body);
     state.remote.days[entry.date] = id;
   }
@@ -558,11 +563,24 @@
     }
   }
 
+  /**
+   * Sichtbarkeit der Termine in Google. "private" bedeutet dort: nur Teilnehmer
+   * sehen die Details – wer einen geteilten Kalender nur lesen darf, sieht
+   * nichts. "default" macht die Einträge für diese Personen lesbar.
+   */
+  function eventVisibility() {
+    return state.settings.sharedVisible ? 'default' : 'private';
+  }
+
   /* ---- 4.6 Vorhersagen nach Google schreiben ---- */
 
   async function syncPredictions() {
     const s = state.settings, calId = activeCalendarId(), p = state.pred;
-    const ctx = { discreet: s.discreet || encryptionOn(), reminderTime: s.reminder ? s.reminderTime : null };
+    const ctx = {
+      discreet: s.discreet || encryptionOn(),
+      reminderTime: s.reminder ? s.reminderTime : null,
+      visibility: eventVisibility()
+    };
     const wantPred = {}, wantFert = {};
     if (p && p.predictions.length) {
       p.predictions.forEach(function (pr, i) {
@@ -1031,6 +1049,7 @@
     $('set-period').value = s.defaultPeriod;
     $('set-write-pred').checked = s.writePredictions;
     $('set-write-fertile').checked = s.writeFertile;
+    $('set-shared-visible').checked = s.sharedVisible;
     $('set-reminder').checked = s.reminder;
     $('set-reminder-time').value = s.reminderTime;
     $('set-reminder-time-row').hidden = !s.reminder;
@@ -1069,6 +1088,14 @@
     onChange('set-period', function (i) { state.settings.defaultPeriod = Math.max(1, Math.min(14, parseInt(i.value, 10) || 5)); });
     onChange('set-write-pred', function (i) { state.settings.writePredictions = i.checked; pushChanges(); });
     onChange('set-write-fertile', function (i) { state.settings.writeFertile = i.checked; pushChanges(); });
+    onChange('set-shared-visible', function (i) {
+      state.settings.sharedVisible = i.checked;
+      // Die Sichtbarkeit steckt in jedem einzelnen Termin, also alles neu schreiben
+      Object.keys(state.entries).forEach(queueDay);
+      state.remote.predSig = '';
+      pushChanges();
+      toast(i.checked ? 'Einträge werden für geteilte Kalender sichtbar' : 'Einträge sind wieder privat');
+    });
     onChange('set-reminder', function (i) { state.settings.reminder = i.checked; pushChanges(); });
     onChange('set-reminder-time', function (i) { state.settings.reminderTime = /^\d{2}:\d{2}$/.test(i.value) ? i.value : '20:00'; pushChanges(); });
     onChange('set-discreet', function (i) {
