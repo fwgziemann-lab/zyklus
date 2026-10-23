@@ -73,7 +73,9 @@ Die Namen beginnen bewusst mit `ZYKLUS_`, damit sie sich nicht mit möglichen sp
 fwgzie@gmail.com,konto-der-freundin@gmail.com
 ```
 
-Ist dieser Eintrag gesetzt, weist der Server jedes andere Google‑Konto beim Verbinden ab und gibt den gerade erhaltenen Zugriff sofort an Google zurück. Ohne den Eintrag darf sich jedes Google‑Konto verbinden – dann jeweils nur mit seinem **eigenen** Kalender im **eigenen** Konto, fremde Daten sind dabei nie sichtbar.
+Ist dieser Eintrag gesetzt, weist der Server jedes andere Google‑Konto beim Verbinden ab und gibt den gerade erhaltenen Zugriff sofort an Google zurück.
+
+Damit der Server überhaupt erkennen kann, *welches* Konto sich verbindet, fordert die App die Bereiche `openid email` mit an (in `config.js`). Fehlen sie, liefert Google kein Konto‑Merkmal und der Server müsste jedes Konto abweisen – er antwortet in dem Fall mit `email_scope_missing` statt stillschweigend alles zu sperren. Ohne den Eintrag darf sich jedes Google‑Konto verbinden – dann jeweils nur mit seinem **eigenen** Kalender im **eigenen** Konto, fremde Daten sind dabei nie sichtbar.
 
 **Wichtig:** Der Clientschlüssel gehört nirgendwo anders hin – nicht ins Repository, nicht in die App, nicht in eine Nachricht.
 

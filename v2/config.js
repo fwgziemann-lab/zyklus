@@ -19,6 +19,9 @@ window.ZyklusConfig = {
   // Google OAuth Client (Webanwendung)
   googleClientId: '762515296645-r3kg3ah6n0l301qbocm6o66dc1jv97f5.apps.googleusercontent.com',
 
-  // Nur der selbst angelegte Kalender, keine anderen Termine
-  scope: 'https://www.googleapis.com/auth/calendar.app.created'
+  // "openid email" wird gebraucht, damit der Server pruefen kann, WELCHES Konto
+  // sich verbindet (Konten-Sperre ZYKLUS_ALLOWED_EMAILS). Ohne diese beiden
+  // liefert Google kein Konto-Merkmal und die Pruefung weist alles ab.
+  // Danach wie bisher: nur der selbst angelegte Kalender, keine anderen Termine.
+  scope: 'openid email https://www.googleapis.com/auth/calendar.app.created'
 };

@@ -665,6 +665,7 @@
     else if (e && e.code === 'not_connected') setStatus('', 'nicht verbunden');
     else if (e && e.code === 'not_configured') setStatus('err', 'Server nicht eingerichtet');
     else if (e && e.code === 'not_allowed') setStatus('err', 'Konto nicht freigegeben');
+    else if (e && e.code === 'email_scope_missing') setStatus('err', 'Konto nicht prüfbar – App neu laden');
     else if (e instanceof AuthError) setStatus('warn', 'Verbindung erneuern');
     else if (!navigator.onLine) setStatus('warn', 'offline');
     else setStatus('err', 'Fehler: ' + (e.message || e));
