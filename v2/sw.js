@@ -5,7 +5,7 @@
  * direkt beim nächsten Laden mit Verbindung. Es werden nur eigene Dateien
  * gecacht, nie Google-Antworten oder Nutzerdaten.
  */
-const CACHE = 'zyklus-v2-shell-v1';
+const CACHE = 'zyklus-v2-shell-v20261023a';
 const SHELL = ['./', './index.html', './config.js', './auth.js', './core.js', './crypto.js', './app.js', './stats.js', './icon.svg', './icon-180.png', './manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
@@ -23,6 +23,9 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // Google & Co. nie anfassen
+  // Die Konfiguration nie aus dem Zwischenspeicher bedienen: Eine veraltete
+  // Kopie fuehrt sonst zu Anmeldefehlern, die niemand nachvollziehen kann.
+  if (url.pathname.endsWith('/config.js')) return;
   e.respondWith(
     fetch(e.request).then(function (res) {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }

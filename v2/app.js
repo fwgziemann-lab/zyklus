@@ -658,6 +658,33 @@
     }
   }
 
+  /**
+   * Der Server meldet, dass die App mit einer veralteten Konfiguration anfragt
+   * (typisch: der Browser oder der Service Worker hat eine alte Datei
+   * zwischengespeichert). Einmal pro Sitzung alles verwerfen und frisch laden.
+   */
+  async function refreshStaleApp() {
+    const KEY = 'zyklus.refreshed';
+    try {
+      if (sessionStorage.getItem(KEY)) {
+        setStatus('err', 'Veraltete App-Dateien. Bitte Browser-Cache leeren.');
+        return;
+      }
+      sessionStorage.setItem(KEY, '1');
+    } catch (err) { /* egal */ }
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
+    } catch (err) { /* egal */ }
+    location.replace(location.pathname + '?frisch=' + Date.now());
+  }
+
   function handleSyncError(e) {
     console.warn('Sync', e);
     if (e instanceof NeedKeyError) { setStatus('warn', 'Passwort nötig'); openPwDialog('unlock'); }
@@ -665,7 +692,7 @@
     else if (e && e.code === 'not_connected') setStatus('', 'nicht verbunden');
     else if (e && e.code === 'not_configured') setStatus('err', 'Server nicht eingerichtet');
     else if (e && e.code === 'not_allowed') setStatus('err', 'Konto nicht freigegeben');
-    else if (e && e.code === 'email_scope_missing') setStatus('err', 'Konto nicht prüfbar – App neu laden');
+    else if (e && e.code === 'email_scope_missing') { setStatus('busy', 'App wird aufgefrischt …'); refreshStaleApp(); }
     else if (e instanceof AuthError) setStatus('warn', 'Verbindung erneuern');
     else if (!navigator.onLine) setStatus('warn', 'offline');
     else setStatus('err', 'Fehler: ' + (e.message || e));
